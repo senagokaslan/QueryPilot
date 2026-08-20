@@ -4,6 +4,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using QueryPilot.Api.Common.Responses;
 using QueryPilot.Api.Configuration;
 using QueryPilot.Api.Data;
+using QueryPilot.Api.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,12 +34,23 @@ builder.Services.Configure<AiOptions>(
     builder.Configuration.GetSection(AiOptions.SectionName));
 builder.Services.Configure<CorsOptions>(
     builder.Configuration.GetSection(CorsOptions.SectionName));
+builder.Services.Configure<DemoSeedOptions>(
+    builder.Configuration.GetSection(DemoSeedOptions.SectionName));
+builder.Services.AddScoped<DemoDataSeeder>();
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment()
+    && builder.Configuration.GetValue<bool>($"{DemoSeedOptions.SectionName}:Enabled"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
+    await seeder.SeedAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

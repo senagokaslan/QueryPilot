@@ -78,3 +78,18 @@ Sunucuyu durdurmak için:
 ```
 
 Uygulama `querypilot_dev` veritabanına yalnız `querypilot_app` rolüyle bağlanır. Connection string ve parolalar Git dışında .NET User Secrets içinde tutulur.
+
+## Migration ve demo verisi
+
+Repository-local EF Core aracını ve migrationları çalıştırmak için:
+
+```powershell
+dotnet tool restore
+dotnet tool run dotnet-ef database update `
+  --project src/QueryPilot.Api/QueryPilot.Api.csproj `
+  --startup-project src/QueryPilot.Api/QueryPilot.Api.csproj
+```
+
+Development ortamında `DemoSeed:Enabled` açık olduğunda boş veritabanına deterministik demo veri eklenir. Seed yaklaşık bir yıllık döneme yayılan 10 kategori, 100 ürün, 500 müşteri ve bunlardan türetilen sipariş, sipariş satırı ve iade kayıtlarını oluşturur. Herhangi bir business verisi varsa seed atlanır; böylece yeniden çalıştırma duplicate kayıt üretmez.
+
+Temel `appsettings.json` içinde seed kapalıdır ve uygulama ayrıca yalnız `Development` ortamında seed çalıştırır. Bu nedenle production ortamında demo veri oluşturulmaz.
