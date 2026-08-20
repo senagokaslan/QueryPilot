@@ -43,3 +43,15 @@ C# namespace'leri proje kökü `QueryPilot.Api` ile başlar ve dosyanın klasör
 - `Configuration/AiOptions.cs` -> `QueryPilot.Api.Configuration`
 
 Bu README geliştirme ilerledikçe kurulum, çalıştırma, migration, test ve API kullanım bilgileriyle genişletilecektir.
+
+## Yerel secret ayarları
+
+Yerel PostgreSQL connection string'i .NET User Secrets içinde `ConnectionStrings:DefaultConnection` anahtarıyla tutulur. Değer source code veya `appsettings` dosyalarına yazılmaz.
+
+Bir AI provider seçildiğinde API anahtarı aşağıdaki komutla yerel secret store'a eklenir. Provider entegrasyonu hazır olmadığı için bu aşamada gerçek AI çağrısı yapılmaz.
+
+```powershell
+dotnet user-secrets set "AI:ApiKey" "<your-api-key>" --project src/QueryPilot.Api
+```
+
+AI provider/model ayarları `AI`, izin verilen frontend originleri ise `Cors:AllowedOrigins` configuration bölümünden okunur.
