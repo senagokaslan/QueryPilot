@@ -55,3 +55,24 @@ dotnet user-secrets set "AI:ApiKey" "<your-api-key>" --project src/QueryPilot.Ap
 ```
 
 AI provider/model ayarları `AI`, izin verilen frontend originleri ise `Cors:AllowedOrigins` configuration bölümünden okunur.
+
+## Yerel PostgreSQL
+
+Development veritabanı PostgreSQL 17 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL17\data` altında tutulur ve yalnız yerel makineden erişilir.
+
+Sunucuyu başlatmak için:
+
+```powershell
+& "$env:ProgramFiles\PostgreSQL\17\bin\pg_ctl.exe" start `
+  -D "$env:LOCALAPPDATA\QueryPilot\PostgreSQL17\data" `
+  -l "$env:LOCALAPPDATA\QueryPilot\PostgreSQL17\postgres.log"
+```
+
+Sunucuyu durdurmak için:
+
+```powershell
+& "$env:ProgramFiles\PostgreSQL\17\bin\pg_ctl.exe" stop `
+  -D "$env:LOCALAPPDATA\QueryPilot\PostgreSQL17\data"
+```
+
+Uygulama `querypilot_dev` veritabanına yalnız `querypilot_app` rolüyle bağlanır. Connection string ve parolalar Git dışında .NET User Secrets içinde tutulur.
