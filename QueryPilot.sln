@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{29DB6545-29EA-4770-8893-9F9B25111079}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryPilot.Api", "src\QueryPilot.Api\QueryPilot.Api.csproj", "{37E0DC35-43B4-4A8D-9961-907918EE6579}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{37E0DC35-43B4-4A8D-9961-907918EE6579}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37E0DC35-43B4-4A8D-9961-907918EE6579}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37E0DC35-43B4-4A8D-9961-907918EE6579}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37E0DC35-43B4-4A8D-9961-907918EE6579}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{37E0DC35-43B4-4A8D-9961-907918EE6579} = {29DB6545-29EA-4770-8893-9F9B25111079}
+	EndGlobalSection
+EndGlobal
