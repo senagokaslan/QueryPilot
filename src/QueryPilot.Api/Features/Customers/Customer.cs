@@ -1,3 +1,5 @@
+using QueryPilot.Api.Features.Orders;
+
 namespace QueryPilot.Api.Features.Customers;
 
 public sealed class Customer
@@ -19,4 +21,6 @@ public sealed class Customer
     public bool IsActive { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    public ICollection<Order> Orders { get; } = [];
 }

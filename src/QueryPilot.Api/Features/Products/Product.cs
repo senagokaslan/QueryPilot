@@ -1,4 +1,5 @@
 using QueryPilot.Api.Features.Categories;
+using QueryPilot.Api.Features.Orders;
 
 namespace QueryPilot.Api.Features.Products;
 
@@ -22,4 +23,6 @@ public sealed class Product
     public DateTime CreatedAt { get; set; }
 
     public Category Category { get; set; } = null!;
+
+    public ICollection<OrderItem> OrderItems { get; } = [];
 }

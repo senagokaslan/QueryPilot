@@ -97,6 +97,13 @@ erDiagram
 - Bir `Product`, sıfır veya daha fazla `OrderItem` içinde yer alabilir; her `OrderItem` tam olarak bir `Product`a bağlıdır.
 - Bir `OrderItem`, sıfır veya daha fazla `Return` kaydına sahip olabilir. Birden fazla kayıt kısmi iadeleri destekler; her `Return` tam olarak bir `OrderItem`a bağlıdır.
 
+## Sipariş durumu
+
+- `Pending`: Sipariş oluşturulmuş ancak tamamlanmış satış olarak değerlendirilmemiştir.
+- `Completed`: Sipariş tamamlanmıştır ve satış analytics hesaplarına dahil edilebilir.
+- `Cancelled`: Sipariş iptal edilmiştir; kayıt korunur ancak satış analytics hesaplarına dahil edilmez.
+- Enum değerleri database'de sayısal olarak saklanacak ve `Pending = 1`, `Completed = 2`, `Cancelled = 3` şeklinde sabitlenecektir.
+
 ## Para kuralları
 
 - `Product.UnitPrice`, `OrderItem.UnitPrice`, `OrderItem.LineTotal`, `Order.TotalAmount` ve `Return.Amount` C# tarafında `decimal`, PostgreSQL tarafında uygun `numeric` tipiyle tutulacaktır.
