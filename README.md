@@ -19,7 +19,7 @@ QueryPilot/
         |   |-- Analytics/
         |   `-- Ai/
         |-- Data/
-        |   |-- AppDbContext.cs        (ADIM 5'te eklenecek)
+        |   |-- AppDbContext.cs
         |   |-- Configurations/
         |   |-- Migrations/
         |   `-- Seed/
@@ -32,6 +32,8 @@ QueryPilot/
 ```
 
 Tek deploy birimi `QueryPilot.Api` projesidir. Microservice, CQRS, MediatR veya ek bir uygulama katmanı bu yapının parçası değildir.
+
+Veri modeli ve ilişki kararları için [Database Modeli](docs/database-model.md) belgesine bakın.
 
 ## Namespace kuralı
 
