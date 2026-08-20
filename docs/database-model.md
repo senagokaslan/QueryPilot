@@ -87,7 +87,8 @@ erDiagram
 - `Customer.Name` en fazla 150, `Customer.Email` ve `Customer.NormalizedEmail` en fazla 320, `Customer.City` en fazla 100 karakterdir.
 - Email kullanıcının girdiği biçimiyle `Email` alanında, trim edilmiş ve küçük harfe dönüştürülmüş karşılığı `NormalizedEmail` alanında tutulacaktır.
 - Email benzersizliği `NormalizedEmail` üzerinden sağlanacak; böylece harf büyüklüğü veya çevresel boşluk farkıyla duplicate müşteri oluşturulamayacaktır.
-- Unique index ve maksimum uzunluklar ADIM 9'daki Fluent API configuration dosyalarında uygulanacaktır.
+- `Return.Reason` en fazla 500 karakterdir.
+- Unique index ve maksimum uzunluklar Fluent API configuration dosyalarında uygulanmıştır.
 
 ## İlişki kararları
 
@@ -111,7 +112,7 @@ erDiagram
 - `OrderItem.UnitPrice`, satış anındaki `Product.UnitPrice` değerinin snapshot'ıdır ve ürün fiyatı sonradan değişse bile değişmez.
 - `OrderItem.LineTotal = Quantity x UnitPrice` ve `Order.TotalAmount`, sipariş satır toplamlarının toplamıdır.
 - `Return.Amount`, güncel ürün fiyatından değil `OrderItem.UnitPrice` snapshot'ından hesaplanır.
-- Kesin precision ve scale değerleri EF Core entity configuration aşamasında bütün para alanları için tutarlı biçimde belirlenecektir.
+- Bütün para alanları PostgreSQL `numeric(18,2)` olarak yapılandırılmıştır.
 
 ## UTC tarih kuralı
 
@@ -124,5 +125,5 @@ erDiagram
 - `Order`, `OrderItem` ve `Return` finansal/tarihsel kayıtlardır; hiçbir zaman hard delete edilmeyecektir.
 - `Category`, `Product` ve `Customer` için normal kaldırma davranışı `IsActive = false` ile pasifleştirmedir.
 - Sipariş geçmişinde kullanılan kategori, ürün veya müşteri kayıtları hard delete edilmeyecektir.
-- Finansal kayıtları kaybettirecek cascade delete davranışı kullanılmayacak; foreign key silme davranışları EF Core configuration aşamasında kısıtlayıcı olarak tanımlanacaktır.
+- Finansal kayıtları kaybettirecek cascade delete davranışı kullanılmaz; bütün model ilişkileri `DeleteBehavior.Restrict` ile yapılandırılmıştır.
 - İptal edilen siparişler silinmek yerine `Status` üzerinden korunacaktır.

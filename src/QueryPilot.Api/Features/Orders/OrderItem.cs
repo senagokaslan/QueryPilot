@@ -1,4 +1,5 @@
 using QueryPilot.Api.Features.Products;
+using QueryPilot.Api.Features.Returns;
 
 namespace QueryPilot.Api.Features.Orders;
 
@@ -23,4 +24,6 @@ public sealed class OrderItem
     public Order Order { get; set; } = null!;
 
     public Product Product { get; set; } = null!;
+
+    public ICollection<Return> Returns { get; } = [];
 }
