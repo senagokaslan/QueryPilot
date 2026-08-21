@@ -8,6 +8,7 @@ using QueryPilot.Api.Common.Responses;
 using QueryPilot.Api.Configuration;
 using QueryPilot.Api.Data;
 using QueryPilot.Api.Data.Seed;
+using QueryPilot.Api.Features.Categories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +53,7 @@ builder.Services
         "Pagination:DefaultPageSize cannot be greater than Pagination:MaxPageSize.")
     .ValidateOnStart();
 builder.Services.AddScoped<DemoDataSeeder>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services
