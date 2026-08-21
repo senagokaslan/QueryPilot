@@ -96,7 +96,7 @@ public sealed class CategoryService(
         await EnsureNameIsUniqueAsync(name, id, cancellationToken);
 
         category.Name = name;
-        category.IsActive = request.IsActive;
+        category.IsActive = request.IsActive!.Value;
         await SaveChangesAsync(name, cancellationToken);
 
         return Map(category);

@@ -8,5 +8,6 @@ public sealed class UpdateCategoryRequest
     [StringLength(Category.NameMaxLength, MinimumLength = 1)]
     public string Name { get; init; } = string.Empty;
 
-    public bool IsActive { get; init; }
+    [Required]
+    public bool? IsActive { get; init; }
 }

@@ -12,6 +12,7 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
         builder.Property(category => category.Name)
             .IsRequired()
+            .HasColumnType("citext")
             .HasMaxLength(Category.NameMaxLength);
 
         builder.Property(category => category.IsActive)
