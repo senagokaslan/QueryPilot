@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using QueryPilot.Api.Common.ErrorHandling;
+using QueryPilot.Api.Common.Pagination;
 using QueryPilot.Api.Common.Responses;
 using QueryPilot.Api.Configuration;
 using QueryPilot.Api.Data;
@@ -9,6 +12,10 @@ using QueryPilot.Api.Data.Seed;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+
+builder.Logging.AddFilter(
+    "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware",
+    LogLevel.None);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -36,8 +43,39 @@ builder.Services.Configure<CorsOptions>(
     builder.Configuration.GetSection(CorsOptions.SectionName));
 builder.Services.Configure<DemoSeedOptions>(
     builder.Configuration.GetSection(DemoSeedOptions.SectionName));
+builder.Services
+    .AddOptions<PaginationOptions>()
+    .Bind(builder.Configuration.GetSection(PaginationOptions.SectionName))
+    .ValidateDataAnnotations()
+    .Validate(
+        options => options.DefaultPageSize <= options.MaxPageSize,
+        "Pagination:DefaultPageSize cannot be greater than Pagination:MaxPageSize.")
+    .ValidateOnStart();
 builder.Services.AddScoped<DemoDataSeeder>();
-builder.Services.AddControllers();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+builder.Services
+    .AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problemDetails = new ValidationProblemDetails(context.ModelState)
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Validation failed.",
+                Type = ProblemDetailsTypes.BadRequest,
+                Instance = context.HttpContext.Request.Path
+            };
+            problemDetails.Extensions["traceId"] =
+                context.HttpContext.TraceIdentifier;
+
+            return new BadRequestObjectResult(problemDetails)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -53,6 +91,8 @@ if (app.Environment.IsDevelopment()
 }
 
 // Configure the HTTP request pipeline.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
