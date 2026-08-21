@@ -60,21 +60,27 @@ AI provider/model ayarları `AI`, izin verilen frontend originleri ise `Cors:All
 
 ## Yerel PostgreSQL
 
-Development veritabanı PostgreSQL 17 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL17\data` altında tutulur ve yalnız yerel makineden erişilir.
+Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.
+
+`QueryPilotPostgreSQL18` adlı kullanıcı görevi, PostgreSQL'i Windows oturumu açıldığında otomatik olarak başlatır. Görevin durumunu kontrol etmek için:
+
+```powershell
+Get-ScheduledTask -TaskName "QueryPilotPostgreSQL18"
+```
 
 Sunucuyu başlatmak için:
 
 ```powershell
-& "$env:ProgramFiles\PostgreSQL\17\bin\pg_ctl.exe" start `
-  -D "$env:LOCALAPPDATA\QueryPilot\PostgreSQL17\data" `
-  -l "$env:LOCALAPPDATA\QueryPilot\PostgreSQL17\postgres.log"
+& "$env:ProgramFiles\PostgreSQL\18\bin\pg_ctl.exe" start `
+  -D "$env:LOCALAPPDATA\QueryPilot\PostgreSQL18\data" `
+  -l "$env:LOCALAPPDATA\QueryPilot\PostgreSQL18\postgres.log"
 ```
 
 Sunucuyu durdurmak için:
 
 ```powershell
-& "$env:ProgramFiles\PostgreSQL\17\bin\pg_ctl.exe" stop `
-  -D "$env:LOCALAPPDATA\QueryPilot\PostgreSQL17\data"
+& "$env:ProgramFiles\PostgreSQL\18\bin\pg_ctl.exe" stop `
+  -D "$env:LOCALAPPDATA\QueryPilot\PostgreSQL18\data"
 ```
 
 Uygulama `querypilot_dev` veritabanına yalnız `querypilot_app` rolüyle bağlanır. Connection string ve parolalar Git dışında .NET User Secrets içinde tutulur.
