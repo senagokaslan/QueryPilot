@@ -45,6 +45,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Ürün güncellemesi geçmiş `OrderItem.UnitPrice` değerlerini değiştirmiyor.
 - Update isteğinde `IsActive` alanı zorunlu; alan gönderilmezse 400 validation yanıtı dönüyor.
 
+### Adım 14 - Customer modülü
+
+- Customer create, update, list ve response DTO'ları oluşturuldu.
+- Name, Email, City ve IsActive alanları doğrulanıyor; boşluklardan oluşan ad ve şehir engelleniyor.
+- E-posta formatı kontrol ediliyor.
+- E-posta `trim + lowercase` politikasıyla normalize ediliyor ve `NormalizedEmail` unique indexiyle duplicate kayıt engelleniyor.
+- Create, update, list, detail ve pasifleştirme işlemleri service katmanında uygulanıyor.
+- Liste endpointinde pagination, ad/e-posta araması, şehir ve aktiflik filtreleri bulunuyor.
+- Hard delete yerine `IsActive` ile soft delete kullanılıyor; sipariş geçmişi olan müşteri ve siparişleri korunuyor.
+- Response DTO yalnızca gerekli müşteri alanlarını içeriyor; `NormalizedEmail` ve entity ilişkileri dönmüyor.
+- Customer işlemleri e-posta, query string veya request body loglamıyor.
+- Update isteğinde `IsActive` alanı zorunlu; alan gönderilmezse 400 validation yanıtı dönüyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -65,20 +78,27 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Test ürününün PostgreSQL'de pasif olarak tutulduğu doğrulandı.
 - Büyük/küçük harfi değiştirilmiş duplicate kategori doğrudan PostgreSQL unique constraint tarafından engellendi.
 - Category ve Product update isteklerinde eksik `IsActive` alanının 400 döndürdüğü Swagger üzerinden doğrulandı.
+- Customer create ve update işlemleri çalıştı; e-posta lowercase olarak normalize edildi.
+- Büyük/küçük harfi değiştirilmiş duplicate e-posta 409, geçersiz e-posta 400 döndürdü.
+- Customer pagination sınırı, ad/e-posta araması, şehir ve aktiflik filtreleri doğrulandı.
+- Boşluklardan oluşan müşteri adı ve şehir 400 döndürdü.
+- Sipariş geçmişi olan müşteri DELETE sonrasında PostgreSQL'de pasif olarak ve siparişleriyle birlikte kaldı.
+- Customer testlerinde uygulama loglarına e-posta, müşteri adı veya request body yazılmadığı doğrulandı.
 
 ## Sıradaki adım
 
-PDF yol haritasına göre sıradaki çalışma **Adım 14 - Customer Modülünü Tamamla**:
+PDF yol haritasına göre sıradaki çalışma **Adım 15 - Sipariş Request ve Response Modellerini Oluştur**:
 
-- Customer DTO'ları ve service işlemleri
-- Name, Email, City ve IsActive validation
-- E-posta normalizasyonu ve duplicate e-posta politikası
-- Pagination, arama, şehir ve aktiflik filtreleri
-- Soft delete ve kişisel veri güvenliği
-- Swagger üzerinden valid, invalid ve duplicate e-posta testleri
+- `CreateOrderRequest` içinde yalnızca CustomerId, ProductId ve Quantity kabul edilmesi
+- En az bir sipariş satırı ve pozitif Quantity doğrulaması
+- Request içinde UnitPrice, LineTotal veya TotalAmount bulunmaması
+- Order liste ve detay response DTO'larının ayrılması
+- OrderDate değerinin backend tarafından atanması
+- Validation hatalarının ortak error formatında dönmesi
 
 ## Git geçmişi
 
 - `02f990d` - Ortak API hata ve pagination altyapısı
 - `f9c2475` - Category yönetim API'si
 - `137f6ba` - Yerel PostgreSQL 18 kurulum dokümantasyonu
+- `5653bd3` - Product modülü ve kategori/update sağlamlaştırmaları
