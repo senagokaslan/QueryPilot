@@ -109,6 +109,18 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Swagger testinde pagination ve bütün filtrelerin query string'e bağlandığı, geçerli isteğin 200, ters tarih aralığının 400 ve olmayan siparişin 404 döndürdüğü doğrulandı.
 - Yerel PostgreSQL runtime testinde iade kayıtları olan bir siparişin detay projection'ı, item iade özetleri ve sipariş toplamları doğrulandı.
 
+### Adım 19 - Sipariş entegrasyon testleri
+
+- Yerel PostgreSQL üzerinde geçerli müşteri ve ürünle tek item'lı sipariş 201 ile oluşturuldu.
+- İki farklı ürün içeren sipariş 201 ile oluşturuldu; item toplamları `Order.TotalAmount` ile eşleşti.
+- Olmayan müşteri 404, pasif müşteri 409 ile reddedildi.
+- Olmayan ürün 404, pasif ürün 409 ile reddedildi.
+- Sıfır ve negatif `Quantity` değerleri 400 validation yanıtıyla reddedildi.
+- Request'e eklenen `UnitPrice`, `LineTotal` ve `TotalAmount` alanları kullanılmadı; tanımsız finansal alan politikası gereği request 400 ile reddedildi.
+- Ürün fiyatı geçici olarak değiştirildiğinde eski siparişin `OrderItem.UnitPrice` snapshot'ı aynı kaldı; ürün fiyatı test sonunda geri alındı.
+- Geçerli ve olmayan ürünün birlikte gönderildiği hatalı request öncesi ve sonrası database order sayısı eşitti; yarım order veya item kaydı oluşmadı.
+- Yeni oluşturulan tek ve çok item'lı siparişler liste endpointinde bulundu ve detay endpointinden finansal alanlarıyla doğrulandı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
