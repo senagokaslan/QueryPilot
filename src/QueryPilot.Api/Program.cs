@@ -12,6 +12,7 @@ using QueryPilot.Api.Features.Categories;
 using QueryPilot.Api.Features.Customers;
 using QueryPilot.Api.Features.Orders;
 using QueryPilot.Api.Features.Products;
+using QueryPilot.Api.Features.Returns;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,6 +61,7 @@ builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services

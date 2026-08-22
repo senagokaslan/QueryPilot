@@ -121,6 +121,18 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Geçerli ve olmayan ürünün birlikte gönderildiği hatalı request öncesi ve sonrası database order sayısı eşitti; yarım order veya item kaydı oluşmadı.
 - Yeni oluşturulan tek ve çok item'lı siparişler liste endpointinde bulundu ve detay endpointinden finansal alanlarıyla doğrulandı.
 
+### Adım 20 - İade request'i, miktar limiti ve tutar politikası
+
+- `CreateReturnRequest` yalnızca `OrderItemId`, `Quantity` ve `Reason` alanlarını kabul ediyor; tanımsız JSON alanları reddediliyor.
+- `OrderItemId` ve `Quantity` pozitif olmak zorunda; `Reason` trim ediliyor, boş/whitespace ve 500 karakterden uzun değerler reddediliyor.
+- OrderItem bulunamadığında 404 dönüyor.
+- Yalnızca `Completed` durumundaki siparişlerin item'ları iade edilebiliyor; `Pending` ve `Cancelled` siparişler 409 ile reddediliyor.
+- Satın alınan miktar `OrderItem.Quantity` değerinden, önceki iade miktarı aynı item'a ait `Return.Quantity` toplamından okunuyor.
+- Yeni iade miktarı kalan iade edilebilir miktarı aşarsa 400 validation yanıtı dönüyor ve iade kaydı oluşmuyor.
+- Miktar kontrolü ve kayıt aynı transaction içinde yapılıyor; OrderItem satırı `FOR UPDATE` ile kilitlenerek eşzamanlı iadelerin limiti aşması engelleniyor.
+- `Return.Amount`, istemciden alınmıyor; `OrderItem.UnitPrice` fiyat snapshot'ı ile iade miktarının `decimal` çarpımından hesaplanıyor.
+- `ReturnResponse`, iade tutarıyla birlikte işlem sonrası kalan iade edilebilir miktarı döndürüyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
