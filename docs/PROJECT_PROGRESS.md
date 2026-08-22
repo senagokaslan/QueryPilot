@@ -83,6 +83,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Request, müşteri ve tüm ürün kontrolleri tamamlanmadan `Order` context'e eklenmiyor ve `SaveChanges` çağrılmıyor.
 - Başarılı sipariş, satırlarıyla birlikte tek `SaveChanges` işlemiyle atomik olarak kaydediliyor.
 
+### Adım 17 - Sipariş toplamları, transaction ve create endpointi
+
+- Her `OrderItem.LineTotal`, `decimal` fiyat ile `Quantity * UnitPrice` olarak backend tarafından hesaplanıyor.
+- `Order.TotalAmount`, aggregate içindeki tüm `LineTotal` değerlerinin toplamından üretiliyor.
+- `Order` ve tüm `OrderItem` kayıtları tek aggregate olarak oluşturulup tek `SaveChangesAsync` çağrısıyla kaydediliyor.
+- Müşteri ve ürün okumalarından kayıt sonrası toplam kontrolüne kadar bütün sipariş oluşturma akışı açık database transaction'ı içinde çalışıyor; hata durumunda rollback yapılıyor.
+- Kayıt sonrasında database'deki `TotalAmount` ile database'deki item toplamı transaction commit edilmeden önce karşılaştırılıyor.
+- `POST /api/orders` başarılı işlemde 201 Created, order detail DTO ve `GET /api/orders/{id}` adresini gösteren `Location` header'ı döndürüyor.
+- `GET /api/orders/{id}` entity graph yerine doğrudan `OrderDetailResponse` projection'ı döndürüyor.
+- Başarılı sipariş olayı yalnızca `OrderId` ve item sayısıyla loglanıyor; request, müşteri, ürün veya fiyat içeriği loglanmıyor.
+- Yerel runtime testinde POST 201 ve Location doğrulandı; kaydedilen toplam item toplamıyla eşleşti.
+- Runtime testinde ürün fiyatı sonradan değiştirildiğinde eski `OrderItem.UnitPrice`, `LineTotal` ve `Order.TotalAmount` değerlerinin korunduğu doğrulandı; ürün fiyatı test sonunda geri alındı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.

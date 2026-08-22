@@ -5,13 +5,77 @@ using QueryPilot.Api.Features.Orders.Dtos;
 
 namespace QueryPilot.Api.Features.Orders;
 
-public sealed class OrderService(AppDbContext dbContext) : IOrderService
+public sealed class OrderService(
+    AppDbContext dbContext,
+    ILogger<OrderService> logger) : IOrderService
 {
+    public async Task<OrderDetailResponse> GetByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await dbContext.Orders
+            .AsNoTracking()
+            .Where(order => order.Id == id)
+            .Select(order => new OrderDetailResponse(
+                order.Id,
+                new OrderCustomerSummaryResponse(
+                    order.Customer.Id,
+                    order.Customer.Name,
+                    order.Customer.Email,
+                    order.Customer.City),
+                order.OrderDate,
+                order.Status,
+                order.TotalAmount,
+                order.Items
+                    .OrderBy(item => item.Id)
+                    .Select(item => new OrderItemResponse(
+                        item.Id,
+                        new OrderProductSummaryResponse(
+                            item.Product.Id,
+                            item.Product.Name,
+                            item.Product.SKU),
+                        item.Quantity,
+                        item.UnitPrice,
+                        item.LineTotal))
+                    .ToList()))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return order
+            ?? throw new NotFoundException($"Order with id {id} was not found.");
+    }
+
     public async Task<OrderDetailResponse> CreateAsync(
         CreateOrderRequest request,
         CancellationToken cancellationToken = default)
     {
         ValidateRequest(request);
+
+        await using var transaction = await dbContext.Database
+            .BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var order = await CreateOrderAsync(request, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Order {OrderId} created with {ItemCount} items.",
+                order.Id,
+                order.Items.Count);
+
+            return order;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    private async Task<OrderDetailResponse> CreateOrderAsync(
+        CreateOrderRequest request,
+        CancellationToken cancellationToken)
+    {
 
         var customer = await dbContext.Customers
             .AsNoTracking()
@@ -102,6 +166,22 @@ public sealed class OrderService(AppDbContext dbContext) : IOrderService
 
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        var persistedTotals = await dbContext.Orders
+            .AsNoTracking()
+            .Where(savedOrder => savedOrder.Id == order.Id)
+            .Select(savedOrder => new
+            {
+                savedOrder.TotalAmount,
+                ItemsTotal = savedOrder.Items.Sum(item => item.LineTotal)
+            })
+            .SingleAsync(cancellationToken);
+
+        if (persistedTotals.TotalAmount != persistedTotals.ItemsTotal)
+        {
+            throw new InvalidOperationException(
+                "The persisted order total does not match its item totals.");
+        }
 
         return new OrderDetailResponse(
             order.Id,
