@@ -96,6 +96,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Yerel runtime testinde POST 201 ve Location doğrulandı; kaydedilen toplam item toplamıyla eşleşti.
 - Runtime testinde ürün fiyatı sonradan değiştirildiğinde eski `OrderItem.UnitPrice`, `LineTotal` ve `Order.TotalAmount` değerlerinin korunduğu doğrulandı; ürün fiyatı test sonunda geri alındı.
 
+### Adım 18 - Sipariş listeleme, filtreleme ve detay projection'ı
+
+- `GET /api/orders` pagination ile sipariş listesi döndürüyor.
+- Liste endpointinde dahil edici `From` ve `To` tarih aralığı, `Status` ve `CustomerId` filtreleri bulunuyor.
+- Tarihler `DateTimeOffset` olarak kabul edilip sorguda UTC'ye çevriliyor; `From > To` ortak validation formatında 400 döndürüyor.
+- Liste en yeni sipariş önce olacak biçimde `OrderDate DESC, Id DESC` ile kararlı sıralanıyor.
+- Liste sorgusu entity graph yerine yalnızca `OrderListResponse` alanlarını projection ile getiriyor.
+- `GET /api/orders/{id}` müşteri özeti, item'lar, fiyat snapshot'ları ve toplamları `OrderDetailResponse` projection'ıyla döndürüyor.
+- İadesi bulunan item'larda iade kaydı sayısı, toplam iade adedi ve toplam iade tutarı; bulunmayanlarda `null` iade özeti dönüyor.
+- Olmayan sipariş ortak 404 `ProblemDetails` yanıtı döndürüyor; entity navigation'ları doğrudan serialize edilmiyor.
+- Swagger testinde pagination ve bütün filtrelerin query string'e bağlandığı, geçerli isteğin 200, ters tarih aralığının 400 ve olmayan siparişin 404 döndürdüğü doğrulandı.
+- Yerel PostgreSQL runtime testinde iade kayıtları olan bir siparişin detay projection'ı, item iade özetleri ve sipariş toplamları doğrulandı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.

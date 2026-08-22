@@ -5,4 +5,5 @@ public sealed record OrderItemResponse(
     OrderProductSummaryResponse Product,
     int Quantity,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal LineTotal,
+    OrderItemReturnSummaryResponse? ReturnSummary);

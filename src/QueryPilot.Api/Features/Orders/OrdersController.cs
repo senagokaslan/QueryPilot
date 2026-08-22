@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using QueryPilot.Api.Common.Pagination;
 using QueryPilot.Api.Features.Orders.Dtos;
 
 namespace QueryPilot.Api.Features.Orders;
@@ -7,6 +8,16 @@ namespace QueryPilot.Api.Features.Orders;
 [Route("api/orders")]
 public sealed class OrdersController(IOrderService orderService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType<PagedResponse<OrderListResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<PagedResponse<OrderListResponse>>> GetAll(
+        [FromQuery] OrderListRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await orderService.GetAllAsync(request, cancellationToken));
+    }
+
     [HttpGet("{id:long}")]
     [ProducesResponseType<OrderDetailResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

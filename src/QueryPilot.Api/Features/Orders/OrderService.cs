@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using QueryPilot.Api.Common.Exceptions;
+using QueryPilot.Api.Common.Pagination;
 using QueryPilot.Api.Data;
 using QueryPilot.Api.Features.Orders.Dtos;
 
@@ -7,8 +9,65 @@ namespace QueryPilot.Api.Features.Orders;
 
 public sealed class OrderService(
     AppDbContext dbContext,
-    ILogger<OrderService> logger) : IOrderService
+    ILogger<OrderService> logger,
+    IOptions<PaginationOptions> paginationOptions) : IOrderService
 {
+    private readonly PaginationOptions _paginationOptions = paginationOptions.Value;
+
+    public async Task<PagedResponse<OrderListResponse>> GetAllAsync(
+        OrderListRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateListRequest(request);
+
+        var pagination = new PaginationRequest(request.Page, request.PageSize)
+            .Normalize(_paginationOptions);
+        var query = dbContext.Orders.AsNoTracking();
+
+        if (request.From.HasValue)
+        {
+            var fromUtc = request.From.Value.UtcDateTime;
+            query = query.Where(order => order.OrderDate >= fromUtc);
+        }
+
+        if (request.To.HasValue)
+        {
+            var toUtc = request.To.Value.UtcDateTime;
+            query = query.Where(order => order.OrderDate <= toUtc);
+        }
+
+        if (request.Status.HasValue)
+        {
+            query = query.Where(order => order.Status == request.Status.Value);
+        }
+
+        if (request.CustomerId.HasValue)
+        {
+            query = query.Where(order => order.CustomerId == request.CustomerId.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var orders = await query
+            .OrderByDescending(order => order.OrderDate)
+            .ThenByDescending(order => order.Id)
+            .Skip(pagination.Skip)
+            .Take(pagination.PageSize)
+            .Select(order => new OrderListResponse(
+                order.Id,
+                order.CustomerId,
+                order.OrderDate,
+                order.Status,
+                order.TotalAmount,
+                order.Items.Count))
+            .ToListAsync(cancellationToken);
+
+        return new PagedResponse<OrderListResponse>(
+            orders,
+            pagination.Page,
+            pagination.PageSize,
+            totalCount);
+    }
+
     public async Task<OrderDetailResponse> GetByIdAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -36,7 +95,13 @@ public sealed class OrderService(
                             item.Product.SKU),
                         item.Quantity,
                         item.UnitPrice,
-                        item.LineTotal))
+                        item.LineTotal,
+                        item.Returns.Any()
+                            ? new OrderItemReturnSummaryResponse(
+                                item.Returns.Count,
+                                item.Returns.Sum(returnRecord => returnRecord.Quantity),
+                                item.Returns.Sum(returnRecord => returnRecord.Amount))
+                            : null))
                     .ToList()))
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -205,8 +270,26 @@ public sealed class OrderService(
                         product.SKU),
                     item.Quantity,
                     item.UnitPrice,
-                    item.LineTotal);
+                    item.LineTotal,
+                    null);
             }).ToArray());
+    }
+
+    private static void ValidateListRequest(OrderListRequest request)
+    {
+        if (request.From.HasValue
+            && request.To.HasValue
+            && request.From.Value > request.To.Value)
+        {
+            throw new RequestValidationException(
+                new Dictionary<string, string[]>
+                {
+                    [nameof(request.From)] =
+                    ["From must be earlier than or equal to To."],
+                    [nameof(request.To)] =
+                    ["To must be later than or equal to From."]
+                });
+        }
     }
 
     private static void ValidateRequest(CreateOrderRequest request)
