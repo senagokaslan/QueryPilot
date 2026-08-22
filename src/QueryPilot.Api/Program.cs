@@ -10,6 +10,7 @@ using QueryPilot.Api.Data;
 using QueryPilot.Api.Data.Seed;
 using QueryPilot.Api.Features.Categories;
 using QueryPilot.Api.Features.Customers;
+using QueryPilot.Api.Features.Orders;
 using QueryPilot.Api.Features.Products;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -57,6 +58,7 @@ builder.Services
 builder.Services.AddScoped<DemoDataSeeder>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();

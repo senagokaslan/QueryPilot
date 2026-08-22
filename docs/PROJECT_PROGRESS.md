@@ -72,6 +72,17 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - `OrderDate` request modelinde bulunmuyor; sipariş oluşturulurken backend tarafından `DateTime.UtcNow` ile atanacak.
 - Data annotation ve model-level validation hataları mevcut ortak `ValidationProblemDetails` formatına bağlı.
 
+### Adım 16 - Sipariş oluşturma doğrulamaları ve fiyat snapshot'ı
+
+- Sipariş oluşturulurken müşteri veritabanından bulunuyor; bulunamayan müşteri için 404 dünüyor.
+- Pasif müşterinin yeni sipariş vermesi 409 ile engelleniyor.
+- Request içindeki tüm benzersiz `ProductId` değerleri tek bir `WHERE IN` sorgusuyla getiriliyor; item sayısına bağlı N+1 ürün sorgusu oluşmuyor.
+- Eksik ürünlerin ID değerleri 404 yanıtında, pasif ürünlerin ID değerleri 409 yanıtında bildiriliyor.
+- Her satırın `UnitPrice` değeri veritabanındaki güncel ürün fiyatından kopyalanıyor; frontend fiyat belirleyemiyor.
+- `LineTotal` ve `TotalAmount` backend tarafından fiyat snapshot'ı kullanılarak hesaplanıyor.
+- Request, müşteri ve tüm ürün kontrolleri tamamlanmadan `Order` context'e eklenmiyor ve `SaveChanges` çağrılmıyor.
+- Başarılı sipariş, satırlarıyla birlikte tek `SaveChanges` işlemiyle atomik olarak kaydediliyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
