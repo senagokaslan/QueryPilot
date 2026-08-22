@@ -133,6 +133,18 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - `Return.Amount`, istemciden alınmıyor; `OrderItem.UnitPrice` fiyat snapshot'ı ile iade miktarının `decimal` çarpımından hesaplanıyor.
 - `ReturnResponse`, iade tutarıyla birlikte işlem sonrası kalan iade edilebilir miktarı döndürüyor.
 
+### Adım 21 - İade endpointi, transaction ve concurrency
+
+- `POST /api/returns` başarılı işlemde 201 ve `ReturnResponse` döndürüyor.
+- Satın alınan miktarı aşan veya tamamen iade edilmiş item'a yapılan yeni iade ortak 409 `ProblemDetails` yanıtıyla reddediliyor.
+- OrderItem ve önceki iade miktarları transaction içinde yeniden okunuyor; `FOR UPDATE` satır kilidi aynı item'a gelen eşzamanlı istekleri sıraya alıyor.
+- `Return.Amount`, `OrderItem.UnitPrice` fiyat snapshot'ı ve iade miktarından `decimal` olarak hesaplanıyor; `ReturnDate` backend tarafından UTC atanıyor.
+- Başarılı iade olayı yalnızca `ReturnId`, `OrderItemId` ve `Quantity` ile loglanıyor; reason, amount, müşteri veya request body loglanmıyor.
+- Yerel PostgreSQL runtime testinde olmayan item 404, Pending sipariş 409, geçersiz miktar/reason ve istemci `Amount` alanı 400, over-return 409 döndürdü.
+- Kısmi iade 201 ile oluşturuldu; tutarın fiyat snapshot'ından hesaplandığı, tarihin UTC olduğu ve kalan miktarın doğru döndüğü doğrulandı.
+- Aynı kalan miktar için eşzamanlı iki istekten biri 201, diğeri 409 aldı; toplam iade miktarı satın alınan miktarı aşmadı.
+- Order detail iade özetinde toplam iade miktarı ve tutarın finansal olarak tutarlı olduğu doğrulandı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.

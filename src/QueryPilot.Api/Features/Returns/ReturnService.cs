@@ -6,7 +6,9 @@ using QueryPilot.Api.Features.Returns.Dtos;
 
 namespace QueryPilot.Api.Features.Returns;
 
-public sealed class ReturnService(AppDbContext dbContext) : IReturnService
+public sealed class ReturnService(
+    AppDbContext dbContext,
+    ILogger<ReturnService> logger) : IReturnService
 {
     public async Task<ReturnResponse> CreateAsync(
         CreateReturnRequest request,
@@ -48,14 +50,8 @@ public sealed class ReturnService(AppDbContext dbContext) : IReturnService
 
             if (request.Quantity > remainingReturnableQuantity)
             {
-                throw new RequestValidationException(
-                    new Dictionary<string, string[]>
-                    {
-                        [nameof(request.Quantity)] =
-                        [
-                            $"The return quantity cannot exceed the remaining returnable quantity of {remainingReturnableQuantity}."
-                        ]
-                    });
+                throw new ConflictException(
+                    $"The return quantity cannot exceed the remaining returnable quantity of {remainingReturnableQuantity}.");
             }
 
             var returnDate = DateTime.UtcNow;
@@ -71,6 +67,12 @@ public sealed class ReturnService(AppDbContext dbContext) : IReturnService
             dbContext.Returns.Add(returnRecord);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Return {ReturnId} created for order item {OrderItemId} with quantity {Quantity}.",
+                returnRecord.Id,
+                returnRecord.OrderItemId,
+                returnRecord.Quantity);
 
             return new ReturnResponse(
                 returnRecord.Id,
