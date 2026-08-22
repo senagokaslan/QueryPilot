@@ -58,6 +58,20 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Customer işlemleri e-posta, query string veya request body loglamıyor.
 - Update isteğinde `IsActive` alanı zorunlu; alan gönderilmezse 400 validation yanıtı dönüyor.
 
+### Adım 15 - Sipariş request ve response modelleri
+
+- `CreateOrderRequest` yalnızca `CustomerId` ve sipariş satırlarını kabul ediyor.
+- Her sipariş satırında yalnızca `ProductId` ve `Quantity` bulunuyor; fiyat ve toplam alanları istemciden alınmıyor.
+- Request DTO'ları tanımsız JSON alanlarını reddediyor. Böylece `UnitPrice`, `LineTotal`, `TotalAmount` ve `OrderDate` istemciden gönderilemiyor.
+- Frontend fiyat veya toplam belirleyemiyor; `UnitPrice` ürünün kayıtlı fiyatından, `LineTotal` ve `TotalAmount` ise backend tarafından hesaplanacak.
+- En az bir sipariş satırı, pozitif `CustomerId`, `ProductId` ve `Quantity` validation ile zorunlu.
+- Aynı `ProductId` değerinin bir request içinde birden fazla kez gelmesi 400 validation hatası olarak reddediliyor; satırlar sessizce birleştirilmiyor.
+- Liste için hafif `OrderListResponse`, detay için müşteri ve ürün özetleriyle birlikte `OrderDetailResponse` oluşturuldu.
+- API response'larında `Order`, `OrderItem`, `Customer` veya `Product` entity graphı doğrudan serialize edilmeyecek; yalnızca liste ve detay DTO'ları kullanılacak.
+- `UnitPrice`, `LineTotal` ve `TotalAmount` response modellerinde sunucu tarafından hesaplanan finansal snapshot değerleri olarak yer alıyor.
+- `OrderDate` request modelinde bulunmuyor; sipariş oluşturulurken backend tarafından `DateTime.UtcNow` ile atanacak.
+- Data annotation ve model-level validation hataları mevcut ortak `ValidationProblemDetails` formatına bağlı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -87,14 +101,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-PDF yol haritasına göre sıradaki çalışma **Adım 15 - Sipariş Request ve Response Modellerini Oluştur**:
-
-- `CreateOrderRequest` içinde yalnızca CustomerId, ProductId ve Quantity kabul edilmesi
-- En az bir sipariş satırı ve pozitif Quantity doğrulaması
-- Request içinde UnitPrice, LineTotal veya TotalAmount bulunmaması
-- Order liste ve detay response DTO'larının ayrılması
-- OrderDate değerinin backend tarafından atanması
-- Validation hatalarının ortak error formatında dönmesi
+Sipariş oluşturma, listeleme ve detay işlemlerini service ve controller katmanlarında uygulamak.
 
 ## Git geçmişi
 
