@@ -222,6 +222,18 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Farklı ay uzunluğu testinde 1 Mart-1 Nisan aralığının 31 günlük önceki dönemi 29 Ocak-1 Mart olarak oluştu; aralıklar bitişik ve eşit tick uzunluğunda bulundu.
 - Rollback fixture testinde 500.000 mevcut ve 600.000 önceki revenue sonucu `-16,67` ve `Decrease` döndü; ayrı aralıklarda `Increase`, `NoChange` ve `NoBaseline` durumları doğrulandı.
 
+### Adım 29 - Return Analytics
+
+- `GetReturnAnalyticsAsync`, seçilen UTC yarı-açık aralıktaki iade kaydı sayısını, toplam iade adedini ve snapshot `Return.Amount` toplamını PostgreSQL aggregate sorgularıyla hesapıyor.
+- İade oranı `ReturnDate` aralığındaki iade adedi / aynı UTC aralıkta `OrderDate` ile filtrelenen `Completed` siparişlerin satış adedi * 100 olarak tanımlandı.
+- Satış paydası sıfırsa yüzde `null` ve durum `NoSalesBaseline`; aksi durumda iki ondalıklı numeric yüzde ve `Calculated` dönüyor.
+- Response metadata'sı oran formülünü, iade metriklerinin `ReturnDate`, satış paydasının `OrderDate` kullandığını ve iki filtrenin de başlangıç dahil/bitiş hariç olduğunu açıklıyor.
+- İadeler Reason bazında kayıt sayısı, quantity ve amount ile gruplanıyor; ürünler quantity azalan, amount azalan ve ProductId artan kararlı sırada ilk 10 sonuç olarak dönüyor.
+- Rollback fixture testinde aynı item'a ait 2 ve 3 adetlik iki kısmi iade `Damaged` grubunda 2 kayıt, 5 adet ve 100 tutar olarak birleşti.
+- Bilinen fixture için 3 iade kaydı, 6 iade adedi, 150 tutar ve 12 satış adedi hesaplandı; iade oranı elle hesaplanan yüzde 50 ile eşleşti.
+- Product güncel fiyatı 999 iken iade tutarları OrderItem snapshot fiyatlarından gelen 40, 60 ve 50 olarak toplandı; güncel fiyat analytics tutarını etkilemedi.
+- Eski siparişe ait fakat seçilen dönemde gerçekleşen iade `ReturnDate` ile sayıldı; aynı dönemde satış olmadığından `NoSalesBaseline` doğrulandı. Boş dönem sıfır metrikler ve boş listeler döndürdü.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -251,7 +263,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 29 kapsamında Return Analytics analizini oluşturmak.
+Adım 30 kapsamında beş Analytics endpointini yayınlamak ve sorguları kontrol etmek.
 
 ## Git geçmişi
 

@@ -31,4 +31,9 @@ public interface IAnalyticsService
         DateTimeOffset from,
         DateTimeOffset to,
         CancellationToken cancellationToken = default);
+
+    Task<ReturnAnalyticsResponse> GetReturnAnalyticsAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default);
 }

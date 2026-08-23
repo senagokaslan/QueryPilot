@@ -22,6 +22,11 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
 
     public const int PercentageDecimalPlaces = 2;
 
+    public const int ReturnAnalyticsTopProductsLimit = 10;
+
+    public const string ReturnRateDefinition =
+        "Returned quantity whose ReturnDate is in the selected UTC range divided by units sold from completed orders whose OrderDate is in the same UTC range, multiplied by 100.";
+
     public AnalyticsDateRange CreateDateRange(
         DateTimeOffset from,
         DateTimeOffset to)
@@ -292,6 +297,118 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
             categories,
             CreateComparisonPeriod(range, previousRange),
             CreateMetricComparison(totalRevenue, previousTotalRevenue));
+    }
+
+    public async Task<ReturnAnalyticsResponse> GetReturnAnalyticsAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        var range = CreateDateRange(from, to);
+        var fromUtc = range.FromUtc.UtcDateTime;
+        var toUtc = range.ToUtc.UtcDateTime;
+        var returnRecords = dbContext.Returns
+            .AsNoTracking()
+            .Where(returnRecord =>
+                returnRecord.ReturnDate >= fromUtc
+                && returnRecord.ReturnDate < toUtc);
+        var returnSummary = await returnRecords
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                ReturnRecordCount = group.Count(),
+                ReturnedQuantity = group.Sum(returnRecord => (long)returnRecord.Quantity),
+                TotalReturnAmount = group.Sum(returnRecord => returnRecord.Amount)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        var soldQuantity = await dbContext.OrderItems
+            .AsNoTracking()
+            .Where(item =>
+                item.Order.Status == IncludedOrderStatus
+                && item.Order.OrderDate >= fromUtc
+                && item.Order.OrderDate < toUtc)
+            .SumAsync(
+                item => (long?)item.Quantity,
+                cancellationToken)
+            ?? AnalyticsResponseDefaults.Quantity;
+        var reasonMetrics = await returnRecords
+            .GroupBy(returnRecord => returnRecord.Reason)
+            .Select(group => new
+            {
+                Reason = group.Key,
+                ReturnCount = group.Count(),
+                Quantity = group.Sum(returnRecord => (long)returnRecord.Quantity),
+                Amount = group.Sum(returnRecord => returnRecord.Amount)
+            })
+            .OrderByDescending(reason => reason.Quantity)
+            .ThenByDescending(reason => reason.ReturnCount)
+            .ThenBy(reason => reason.Reason)
+            .ToListAsync(cancellationToken);
+        var productMetrics = await returnRecords
+            .GroupBy(returnRecord => new
+            {
+                returnRecord.OrderItem.ProductId,
+                returnRecord.OrderItem.Product.Name,
+                returnRecord.OrderItem.Product.SKU
+            })
+            .Select(group => new
+            {
+                group.Key.ProductId,
+                group.Key.Name,
+                group.Key.SKU,
+                ReturnRecordCount = group.Count(),
+                Quantity = group.Sum(returnRecord => (long)returnRecord.Quantity),
+                Amount = group.Sum(returnRecord => returnRecord.Amount)
+            })
+            .OrderByDescending(product => product.Quantity)
+            .ThenByDescending(product => product.Amount)
+            .ThenBy(product => product.ProductId)
+            .Take(ReturnAnalyticsTopProductsLimit)
+            .ToListAsync(cancellationToken);
+        var returnedQuantity = returnSummary?.ReturnedQuantity
+            ?? AnalyticsResponseDefaults.Quantity;
+        decimal? returnRatePercentage = soldQuantity == AnalyticsResponseDefaults.Quantity
+            ? null
+            : Math.Round(
+                (decimal)returnedQuantity / soldQuantity * 100m,
+                PercentageDecimalPlaces,
+                MidpointRounding.AwayFromZero);
+        var mostReturnedProducts = productMetrics
+            .Select((product, index) => new ReturnedProductResponse(
+                index + 1,
+                product.ProductId,
+                product.Name,
+                product.SKU,
+                product.ReturnRecordCount,
+                product.Quantity,
+                product.Amount))
+            .ToArray();
+        var reasons = reasonMetrics
+            .Select(reason => new ReturnReasonBreakdownResponse(
+                reason.Reason,
+                reason.ReturnCount,
+                reason.Quantity,
+                reason.Amount))
+            .ToArray();
+
+        return new ReturnAnalyticsResponse(
+            range.FromUtc,
+            range.ToUtc,
+            returnSummary?.ReturnRecordCount ?? AnalyticsResponseDefaults.Quantity,
+            returnedQuantity,
+            returnSummary?.TotalReturnAmount ?? AnalyticsResponseDefaults.Money,
+            soldQuantity,
+            returnRatePercentage,
+            soldQuantity == AnalyticsResponseDefaults.Quantity
+                ? ReturnRateStatus.NoSalesBaseline
+                : ReturnRateStatus.Calculated,
+            reasons,
+            mostReturnedProducts,
+            new ReturnAnalyticsMetadataResponse(
+                ReturnRateDefinition,
+                "Return metrics use ReturnDate with an inclusive start and exclusive end.",
+                "The sales denominator uses OrderDate for completed orders with the same inclusive-start, exclusive-end range.",
+                ReturnAnalyticsTopProductsLimit));
     }
 
     private async Task<SalesSummaryMetrics> GetSalesSummaryMetricsAsync(
