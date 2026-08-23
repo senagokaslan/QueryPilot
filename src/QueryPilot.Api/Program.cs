@@ -9,6 +9,7 @@ using QueryPilot.Api.Configuration;
 using QueryPilot.Api.Data;
 using QueryPilot.Api.Data.Seed;
 using QueryPilot.Api.Features.Analytics;
+using QueryPilot.Api.Features.Ai;
 using QueryPilot.Api.Features.Categories;
 using QueryPilot.Api.Features.Customers;
 using QueryPilot.Api.Features.Orders;
@@ -58,6 +59,13 @@ builder.Services
         "Pagination:DefaultPageSize cannot be greater than Pagination:MaxPageSize.")
     .ValidateOnStart();
 builder.Services.AddScoped<DemoDataSeeder>();
+builder.Services.AddHttpClient<OpenAiService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.openai.com/v1/");
+    client.Timeout = Timeout.InfiniteTimeSpan;
+});
+builder.Services.AddScoped<IAiService>(serviceProvider =>
+    serviceProvider.GetRequiredService<OpenAiService>());
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();

@@ -249,6 +249,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Gerçek seed verisiyle `EXPLAIN (ANALYZE, BUFFERS)` incelemesinde Orders tarih filtresi `IX_Orders_OrderDate` indeksini kullandı. Küçük OrderItems ve Returns tablolarında planner'ın seçtiği sequential scan'ler yaklaşık 0,09–1,03 ms aralığında tamamlandı.
 - `OrderDate`, `ReturnDate`, `OrderItemId`, `OrderId`, `ProductId` ve `CategoryId` foreign-key/tarih indeksleri mevcut. Bu veri ve planlar için yeni indeks eklenmedi; üretim ölçeğinde gerçek sorgu istatistikleriyle yeniden değerlendirme not edildi.
 
+### Adım 31 - AI servis soyutlaması ve OpenAI adapter'ı
+
+- `IAiService`, kullanıcı sorusunu anlamak ve backend analytics sonucunu açıklamak için iki ayrı async/cancellable metotla oluşturuldu.
+- Feature'a ait `AiQuestionUnderstanding` ve `AiResultExplanation` modelleri provider response tiplerinin uygulama sözleşmesine sızmasını engelliyor.
+- `OpenAiService`, OpenAI Responses API'ye typed `HttpClient` üzerinden bağlanan adapter olarak Dependency Injection'a kaydedildi.
+- Provider, model, API key ve 1-120 saniye aralığındaki timeout `AI` configuration bölümünden okunuyor; key user-secrets veya `AI__ApiKey` environment variable ile sağlanabiliyor.
+- Eksik AI configuration uygulama başlangıcını veya analytics endpointlerini engellemiyor; yalnız AI metodu çağrıldığında kontrollü `AiServiceUnavailableException` üretiyor.
+- Caller cancellation doğrudan korunuyor, provider timeout'u ortak 503 hatasına çevriliyor; 408, 429 ve 5xx geçici durumları en fazla üç denemeyle ele alınıyor.
+- Loglarda provider, model, operasyon, sonuç ve elapsed milliseconds bulunuyor; API key, kullanıcı sorusu, analytics JSON'u ve tam prompt yazılmıyor.
+- `FakeAiService` deterministik sonuç veya test delegate'leriyle gerçek API çağrısı olmadan kullanılabiliyor.
+- Fake contract, OpenAI response mapping, Authorization header, transient retry, caller cancellation, timeout ve hassas log içeriği testleri eklendi.
+- Repository taramasında gerçek veya sabitlenmiş API key bulunmadı; business/analytics servisleri provider adapter ya da OpenAI/Gemini tiplerine doğrudan bağımlı değil.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -278,7 +291,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 31 kapsamında AI intent ve response contract temelini oluşturmak.
+Adım 32 kapsamında kullanıcı sorusunu güvenli ve yapılandırılmış analytics intent modeline dönüştürmek.
 
 ## Git geçmişi
 

@@ -50,13 +50,18 @@ Bu README geliştirme ilerledikçe kurulum, çalıştırma, migration, test ve A
 
 Yerel PostgreSQL connection string'i .NET User Secrets içinde `ConnectionStrings:DefaultConnection` anahtarıyla tutulur. Değer source code veya `appsettings` dosyalarına yazılmaz.
 
-Bir AI provider seçildiğinde API anahtarı aşağıdaki komutla yerel secret store'a eklenir. Provider entegrasyonu hazır olmadığı için bu aşamada gerçek AI çağrısı yapılmaz.
+OpenAI adapter'ı Responses API kullanır. Provider, model, API key ve timeout değerleri `AI` configuration bölümünden okunur. API anahtarını source code veya `appsettings.json` içine yazmayın; yerel geliştirmede user-secrets kullanın.
 
 ```powershell
+dotnet user-secrets set "AI:Provider" "OpenAI" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Model" "<model-id>" --project src/QueryPilot.Api
 dotnet user-secrets set "AI:ApiKey" "<your-api-key>" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:TimeoutSeconds" "30" --project src/QueryPilot.Api
 ```
 
-AI provider/model ayarları `AI`, izin verilen frontend originleri ise `Cors:AllowedOrigins` configuration bölümünden okunur.
+Deployment ortamında aynı değerler `AI__Provider`, `AI__Model`, `AI__ApiKey` ve `AI__TimeoutSeconds` environment variable'larıyla sağlanabilir. Timeout 1-120 saniye arasında olmalıdır. API key eksikken uygulama ve analytics endpointleri çalışmaya devam eder; yalnız AI çağrısı ortak 503 contractıyla sonuçlanır.
+
+AI request logları provider, model, operasyon, sonuç ve süreyi içerir. API key, kullanıcı sorusu, analytics JSON'u ve provider'a gönderilen tam prompt loglanmaz.
 
 ## Yerel PostgreSQL
 
