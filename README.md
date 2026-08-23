@@ -91,7 +91,7 @@ Intent extraction, validation, analytics routing ve açıklama adımlarının ö
 
 `QueryPilot.Api.IntegrationTests` ayrı bir PostgreSQL integration test projesidir. Testler yalnız loopback PostgreSQL sunucusunu kabul eder, `querypilot_test_<guid>` adında benzersiz bir database oluşturur, migrationları uygular, elle hesaplanabilir fixture'ı yükler ve test sonunda yalnız bu kesin isim kalıbındaki database'i kaldırıp silindiğini doğrular. Development veya production database adı hiçbir zaman test bağlantısı olarak kullanılmaz.
 
-Integration testleri yerelde `IntegrationTests:AdminConnectionString` user-secret'ından, CI ortamında ise `QUERYPILOT_INTEGRATION_ADMIN_CONNECTION_STRING` değişkeninden database oluşturma/silme yetkisi olan yalnız test amaçlı PostgreSQL rolünü okur. İki ayar da yoksa yedi test açıkça skipped olarak raporlanır; uygulamanın development connection string'ine geri düşülmez.
+Integration testleri yerelde `IntegrationTests:AdminConnectionString` user-secret'ından, CI ortamında ise `QUERYPILOT_INTEGRATION_ADMIN_CONNECTION_STRING` değişkeninden database oluşturma/silme yetkisi olan yalnız test amaçlı PostgreSQL rolünü okur. İki ayar da yoksa PostgreSQL testleri açıkça skipped olarak raporlanır; uygulamanın development connection string'ine geri düşülmez.
 
 ```powershell
 .\scripts\setup-integration-tests.ps1
@@ -101,6 +101,17 @@ dotnet test tests/QueryPilot.Api.IntegrationTests/QueryPilot.Api.IntegrationTest
 Setup scripti mevcut `Development:PostgresAdminPassword` user-secret'ını yalnız rol kurulumunda kullanır. `querypilot_test_admin` rolünü `LOGIN` ve `CREATEDB` yetkileriyle oluşturur veya parolasını yeniler; role `SUPERUSER` ya da `CREATEROLE` vermez. Oluşturulan bağlantı parolasını terminale yazmadan user-secrets'a kaydeder.
 
 Fixture; summary, günlük/haftalık/aylık trend, top-products quantity/revenue sıralaması, kategori payı ve önceki dönem karşılaştırması, iade oranı/nedenleri/ürünleri, boş dönem, yıl geçişi ve sıfır satış paydası senaryolarını kapsar.
+
+`WebApplicationFactory` contract testleri aynı disposable PostgreSQL database üzerinde Category, Product, Order, Return, Analytics ve AI endpointlerini gerçek HTTP pipeline'ından geçirir. AI çağrılarında deterministik `FakeAiService` kullanılır; model validation ve ortak 400/404/409/500/503 Problem Details response'ları HTTP seviyesinde doğrulanır.
+
+Gerçek OpenAI testi normal test paketinden ayrı ve varsayılan olarak skipped bir smoke testtir. Yalnız bilinçli olarak aşağıdaki üç environment variable sağlandığında ücretli provider çağrısı yapar:
+
+```powershell
+$env:QUERYPILOT_RUN_OPENAI_SMOKE = "true"
+$env:AI__ApiKey = "<your-api-key>"
+$env:AI__Model = "<model-id>"
+dotnet test tests/QueryPilot.Api.Tests/QueryPilot.Api.Tests.csproj --filter "Category=OpenAiSmoke"
+```
 
 ## Yerel PostgreSQL
 

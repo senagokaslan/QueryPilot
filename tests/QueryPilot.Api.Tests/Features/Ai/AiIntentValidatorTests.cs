@@ -81,6 +81,21 @@ public sealed class AiIntentValidatorTests
         Assert.Null(result.Limit);
     }
 
+    [Fact]
+    public async Task Missing_top_products_limit_uses_the_bounded_backend_default()
+    {
+        await using var dbContext = CreateDbContext();
+        var validator = CreateValidator(dbContext);
+        var intent = CreateIntent(
+            AiAnalysisType.TopProducts,
+            metric: AiTopProductsMetric.Quantity,
+            limit: null);
+
+        var result = await validator.ValidateAsync(intent);
+
+        Assert.Equal(AnalyticsService.DefaultTopProductsLimit, result.Limit);
+    }
+
     [Theory]
     [InlineData("bugün", "2026-08-23T00:00:00Z", "2026-08-23T12:00:00Z")]
     [InlineData("son 2 hafta", "2026-08-09T12:00:00Z", "2026-08-23T12:00:00Z")]

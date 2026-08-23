@@ -245,7 +245,19 @@ public sealed class PostgreSqlDatabaseFixture : IAsyncLifetime
             changedMind,
             noSalesBaseline);
         await dbContext.SaveChangesAsync();
+        await ResetIdentitySequencesAsync(dbContext);
     }
+
+    private static Task ResetIdentitySequencesAsync(AppDbContext dbContext) =>
+        dbContext.Database.ExecuteSqlRawAsync(
+            """
+            SELECT setval(pg_get_serial_sequence('"Categories"', 'Id'), MAX("Id"), true) FROM "Categories";
+            SELECT setval(pg_get_serial_sequence('"Products"', 'Id'), MAX("Id"), true) FROM "Products";
+            SELECT setval(pg_get_serial_sequence('"Customers"', 'Id'), MAX("Id"), true) FROM "Customers";
+            SELECT setval(pg_get_serial_sequence('"Orders"', 'Id'), MAX("Id"), true) FROM "Orders";
+            SELECT setval(pg_get_serial_sequence('"OrderItems"', 'Id'), MAX("Id"), true) FROM "OrderItems";
+            SELECT setval(pg_get_serial_sequence('"Returns"', 'Id'), MAX("Id"), true) FROM "Returns";
+            """);
 
     private static Product CreateProduct(
         long id,

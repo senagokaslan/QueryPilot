@@ -385,6 +385,20 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Fixture önce CI environment variable'ını, yoksa local user-secret'ı okuyor. İkisi de yoksa testler skipped raporlanıyor; hiçbir durumda application development connection string'ine fallback yapılmıyor.
 - Gerçek PostgreSQL koşusunda 7/7 integration testi geçti, skipped test kalmadı. Koşu sonrasında `pg_database` sorgusu `querypilot_test_%` isimli database sayısını sıfır gösterdi.
 
+### Adım 42 - AI contract ve HTTP API testleri
+
+- Production `FakeAiService`, provider SDK tipi sızdırmadan typed understanding ve explanation sonuçlarını deterministik delegate veya sabit fixture ile döndürüyor.
+- Sales summary, sales trend, top products, category performance ve return analysis intentlerinin her biri fake provider ile coordinator ve gerçek HTTP endpoint üzerinden çalıştırıldı; yalnız doğru analytics metodu route ediliyor.
+- Malformed/free-text JSON, tanımlanmayan analysis, geçersiz enum, aşırı limit, unexpected alan, `rawSql` ve `command` alanları adapter seviyesinde ortak provider hatası olarak reddediliyor.
+- Eksik tarih, trend granularity ve top-products metric clarification/validation testleri analytics çağrı sayısının sıfır kaldığını doğruluyor. Eksik top-products limitinin sınırsız bırakılmak yerine güvenli backend default'una çevrildiği ayrıca test edildi.
+- Provider timeout, caller cancellation, 429, 5xx ve bağlantı hataları test ediliyor; provider detayları ortak 503 response'una sızmıyor.
+- `WebApplicationFactory<Program>` yalnız `Testing` environment ve disposable `querypilot_test_<guid>` PostgreSQL bağlantısıyla çalışıyor. Development/production database'e veya gerçek AI provider'a fallback yapmıyor.
+- Category ve Product create/get, Order create/get, tamamlanmış OrderItem için Return create ve Sales Summary endpointleri gerçek HTTP request/response ile doğrulandı.
+- Model validation 400, bulunamayan kayıt 404, duplicate kayıt 409, beklenmeyen exception 500 ve provider unavailable 503 cevaplarının `application/problem+json`, type, title, status, instance ve traceId alanları kontrol edildi.
+- HTTP fixture testi explicit seed ID'lerinden sonra PostgreSQL identity sequence'lerinin ilerletilmesi gereğini yakaladı; fixture bütün sequence'leri mevcut maksimum ID'ye taşıyor.
+- Canlı OpenAI smoke testi `Category=OpenAiSmoke` olarak ayrıldı. `QUERYPILOT_RUN_OPENAI_SMOKE=true`, `AI__ApiKey` ve `AI__Model` birlikte verilmedikçe skipped kalıyor ve normal unit/integration akışında ücretli çağrı yapılmıyor.
+- PostgreSQL integration paketi 11/11 geçti; bunun dört testi WebApplicationFactory HTTP contract kapsamıdır.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -414,7 +428,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 42 için sıradaki roadmap checklist'i bekleniyor.
+Adım 43 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 
