@@ -1,7 +1,9 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using QueryPilot.Api.Data;
 using QueryPilot.Api.Features.Ai;
 using QueryPilot.Api.Features.Analytics;
@@ -38,6 +40,8 @@ public sealed class AiEndToEndFlowTests
             return;
         }
 
+        EnsureDisposablePostgreSqlConnection(connectionString);
+
         var postgresUtcNow = new DateTimeOffset(
             2099,
             8,
@@ -73,6 +77,26 @@ public sealed class AiEndToEndFlowTests
         await using var verificationContext = new AppDbContext(options);
         Assert.False(await verificationContext.Categories.AnyAsync(
             category => category.Name.StartsWith(prefix)));
+    }
+
+    private static void EnsureDisposablePostgreSqlConnection(string connectionString)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        var host = builder.Host ?? string.Empty;
+        var isLoopback = string.Equals(
+                host,
+                "localhost",
+                StringComparison.OrdinalIgnoreCase)
+            || IPAddress.TryParse(host, out var address) && IPAddress.IsLoopback(address);
+        var isDisposableDatabase = builder.Database?.StartsWith(
+            "querypilot_test_",
+            StringComparison.Ordinal) == true;
+
+        if (!isLoopback || !isDisposableDatabase)
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL E2E tests require a loopback querypilot_test_<guid> database.");
+        }
     }
 
     private static async Task AssertSupportedQuestionsAsync(

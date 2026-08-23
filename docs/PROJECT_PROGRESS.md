@@ -368,6 +368,23 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Return production kodu değiştirilmeden PostgreSQL `FOR UPDATE` sorgusunu kullanmaya devam ediyor. Return servis testleri relational SQLite üzerinde çalışıyor; SQLite'ın desteklemediği `FOR UPDATE` eki yalnız test projesindeki command interceptor ile kaldırılıyor.
 - Senaryoyu açıklayan test adlarıyla solution test sayısı 86'ya yükseldi; bütün testler başarılı.
 
+### Adım 41 - PostgreSQL analytics integration testleri
+
+- `QueryPilot.Api.IntegrationTests` ayrı bir xUnit projesi olarak solution altındaki `tests` bölümüne eklendi.
+- Opt-in fixture yalnız loopback host kabul ediyor ve development connection string'ine fallback yapmıyor. Her çalıştırmada `querypilot_test_<guid>` isimli benzersiz PostgreSQL database'i oluşturuyor.
+- Migrationlar disposable database'e uygulanıyor; test başlangıcında bütün migrationların applied, pending migration listesinin boş olduğu doğrulanıyor.
+- Küçük fixture iki kategori, üç ürün, önceki ve mevcut dönem siparişleri, iptal edilmiş sipariş, partial/multiple iadeler ve satış paydası olmayan ileri tarihli iade içeriyor.
+- Sales summary için revenue 400, order count 2, units 17, average 200; önceki revenue 150 ve değişim %166,67 elle hesaplanan beklentilerle karşılaştırılıyor.
+- Günlük trendde yedi bucket ve beş boş nokta; haftalık toplam; Aralık 2024/Ocak 2025 aylık yıl geçişi ve kronolojik sıralama doğrulanıyor.
+- Top products adet sırası Alpha/Cup/Beta, gelir sırası Beta/Alpha/Cup olarak ayrı sonuç veriyor.
+- Kategori revenue/unit/share değerleri, genel toplam ve aynı uzunluktaki önceki dönem yüzdeleri test ediliyor.
+- İade testleri üç kayıt, altı adet, 70 tutar, %35,29 oran; reason grupları ve en çok iade edilen ürün sıralamasını kapsıyor.
+- Boş dönem sıfır response üretiyor; satış olmadan iade bulunan dönemde oran `null` ve `NoSalesBaseline` oluyor.
+- Cleanup yalnız sabit test prefix'i ve 32 karakterlik GUID taşıyan database adına izin veriyor, aktif bağlantıları kapatıp database'i siliyor ve `pg_database` üzerinden kalmadığını doğruluyor.
+- Yerel PostgreSQL'de yalnız integration testlerine ayrılmış `querypilot_test_admin` rolü hazırlandı. Rol `CREATEDB` ve `LOGIN` yetkisine sahip; superuser veya role oluşturma yetkisine sahip değil. Parolası ve bağlantısı yalnız .NET user-secrets içindeki `IntegrationTests:AdminConnectionString` anahtarında tutuluyor.
+- Fixture önce CI environment variable'ını, yoksa local user-secret'ı okuyor. İkisi de yoksa testler skipped raporlanıyor; hiçbir durumda application development connection string'ine fallback yapılmıyor.
+- Gerçek PostgreSQL koşusunda 7/7 integration testi geçti, skipped test kalmadı. Koşu sonrasında `pg_database` sorgusu `querypilot_test_%` isimli database sayısını sıfır gösterdi.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -397,7 +414,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 41 için sıradaki roadmap checklist'i bekleniyor.
+Adım 42 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 

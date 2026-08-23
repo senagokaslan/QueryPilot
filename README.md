@@ -89,6 +89,19 @@ Intent extraction, validation, analytics routing ve açıklama adımlarının ö
 
 `QueryPilot.Api.Tests` projesi solution'a dahildir. Order testleri istemcinin finansal toplam gönderemediğini, `OrderItem.UnitPrice`/`LineTotal` snapshotlarını ve `Order.TotalAmount` değerini backend ürün fiyatlarından hesaplandığını doğrular. Return testleri partial/full/over-return kurallarını ve `Return.Amount` değerinin güncel Product fiyatı yerine OrderItem fiyat snapshotından üretildiğini kapsar. Invalid business senaryolarında bir EF `SaveChangesInterceptor` ile `SaveChanges` çağrı sayısının sıfır kaldığı kontrol edilir.
 
+`QueryPilot.Api.IntegrationTests` ayrı bir PostgreSQL integration test projesidir. Testler yalnız loopback PostgreSQL sunucusunu kabul eder, `querypilot_test_<guid>` adında benzersiz bir database oluşturur, migrationları uygular, elle hesaplanabilir fixture'ı yükler ve test sonunda yalnız bu kesin isim kalıbındaki database'i kaldırıp silindiğini doğrular. Development veya production database adı hiçbir zaman test bağlantısı olarak kullanılmaz.
+
+Integration testleri yerelde `IntegrationTests:AdminConnectionString` user-secret'ından, CI ortamında ise `QUERYPILOT_INTEGRATION_ADMIN_CONNECTION_STRING` değişkeninden database oluşturma/silme yetkisi olan yalnız test amaçlı PostgreSQL rolünü okur. İki ayar da yoksa yedi test açıkça skipped olarak raporlanır; uygulamanın development connection string'ine geri düşülmez.
+
+```powershell
+.\scripts\setup-integration-tests.ps1
+dotnet test tests/QueryPilot.Api.IntegrationTests/QueryPilot.Api.IntegrationTests.csproj
+```
+
+Setup scripti mevcut `Development:PostgresAdminPassword` user-secret'ını yalnız rol kurulumunda kullanır. `querypilot_test_admin` rolünü `LOGIN` ve `CREATEDB` yetkileriyle oluşturur veya parolasını yeniler; role `SUPERUSER` ya da `CREATEROLE` vermez. Oluşturulan bağlantı parolasını terminale yazmadan user-secrets'a kaydeder.
+
+Fixture; summary, günlük/haftalık/aylık trend, top-products quantity/revenue sıralaması, kategori payı ve önceki dönem karşılaştırması, iade oranı/nedenleri/ürünleri, boş dönem, yıl geçişi ve sıfır satış paydası senaryolarını kapsar.
+
 ## Yerel PostgreSQL
 
 Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.
