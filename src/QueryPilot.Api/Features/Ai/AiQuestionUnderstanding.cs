@@ -7,5 +7,6 @@ public sealed record AiQuestionUnderstanding(
     string? To,
     string? ProductName,
     string? CategoryName,
+    AiGranularity? Granularity,
     AiTopProductsMetric? Metric,
     int? Limit);

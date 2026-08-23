@@ -65,6 +65,8 @@ AI request logları provider, model, operasyon, sonuç ve süreyi içerir. API k
 
 Soru anlama çağrısı yalnız structured JSON intent döndürür. Desteklenen analizler `salesSummary`, `salesTrend`, `topProducts`, `categoryPerformance` ve `returnAnalysis` değerleridir. Intent ayrıca dönem veya açık tarihleri, ürün/kategori adını, top-products metriğini ve sonucu sınırlandıran limit değerini taşıyabilir. AI katmanı SQL üretmez ve metrikleri kendisi hesaplamaz.
 
+Typed intent backend'e iletilmeden önce doğrulanır. Bütün analizler geçerli ve en fazla beş yıllık bir UTC tarih aralığı gerektirir; desteklenen relative Türkçe dönemler backend `TimeProvider` değeriyle çözülür. Sales trend yalnız daily/weekly/monthly granularity, top-products yalnız quantity/revenue metric ve 1-50 limit kabul eder. Kategori adı verilirse gerçek database kaydı aranır. Doğrulama başarısız olursa analytics servisi çağrılmaz.
+
 ## Yerel PostgreSQL
 
 Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.

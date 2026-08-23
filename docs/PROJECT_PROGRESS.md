@@ -274,6 +274,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - `Son 3 ayda en çok satan 5 ürün ne?` örneğinde `topProducts`, `son 3 ay`, `quantity` ve `5` çıktıları gerçek HTTP çağrısı olmadan adapter seviyesinde doğrulandı.
 - Satış özeti, tarih aralıklı trend, kategori performansı, iade nedenleri, gelire göre ilk 10 ürün ve ürün adına göre özet içeren altı farklı Türkçe soru kalıbı test edildi.
 
+### Adım 33 - AI intent doğrulama ve güvenli analytics yönlendirmesi
+
+- AI JSON cevabı `AiQuestionUnderstanding` typed modeline deserialize ediliyor; bilinmeyen enum değerleri, malformed JSON ve beklenmeyen alanlar adapter sınırında reddediliyor.
+- `AiIntentValidator`, unknown analysis değerini ve her analiz için zorunlu ortak tarih aralığını doğruluyor; sales-trend granularity, top-products metric ve limit alanlarına özel kurallar uyguluyor.
+- Açık ISO-8601 tarihleri UTC'ye çevriliyor. `son N gün/hafta/ay/yıl`, bugün, bu/geçen hafta, ay ve yıl dönemleri merkezi `TimeProvider` üzerinden deterministik UTC aralığına dönüştürülüyor.
+- Tarih başlangıcı bitişten önce olmak ve aralık en fazla AnalyticsService ile aynı 5 yıllık backend sınırında kalmak zorunda.
+- Granularity yalnız Daily, Weekly veya Monthly; metric yalnız Quantity veya Revenue; top-products limit varsayılan 5 ve 1-50 aralığında.
+- Kategori adı verilirse inactive filtresi uygulanmadan database'de case-insensitive kategori kaydı aranıyor ve CategoryId typed komuta ekleniyor; bulunmayan kategori reddediliyor.
+- `rawSql`, `command` ve diğer beklenmeyen JSON alanları `additionalProperties: false` ve unmapped-member reddiyle hiçbir zaman komuta dönüşmüyor veya çalıştırılmıyor.
+- `AiAnalyticsCoordinator` sırasıyla AI parse ve intent validation çalıştırıyor; ancak ikisi de başarılı olursa ilgili `IAnalyticsService` metoduna yönlendiriyor.
+- Malformed JSON, unknown analysis, invalid/çok geniş tarih, eksik veya geçersiz granularity/metric, sıfır/aşırı limit ve bulunmayan kategori test edildi. Invalid intent testlerinde analytics çağrı sayısı sıfır kaldı.
+- Semantic intent validation hataları güvenli ortak 400 validation response'una, malformed veya provider kaynaklı çıktılar prompt/key/raw provider içeriğini açığa çıkarmayan ortak 503 response'una bağlı; sınırsız AI tarih veya limit değeri service metoduna ulaşmıyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -303,7 +316,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 33 kapsamında structured intent değerlerini doğrulanmış analytics requestlerine dönüştürmek.
+Adım 34 kapsamında doğal dil analytics akışını HTTP endpointi ve ortak response contractıyla yayınlamak.
 
 ## Git geçmişi
 

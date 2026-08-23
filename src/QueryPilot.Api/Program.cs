@@ -66,6 +66,9 @@ builder.Services.AddHttpClient<OpenAiService>(client =>
 });
 builder.Services.AddScoped<IAiService>(serviceProvider =>
     serviceProvider.GetRequiredService<OpenAiService>());
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IAiIntentValidator, AiIntentValidator>();
+builder.Services.AddScoped<IAiAnalyticsCoordinator, AiAnalyticsCoordinator>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();

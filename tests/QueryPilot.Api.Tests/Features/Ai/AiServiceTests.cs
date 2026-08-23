@@ -24,6 +24,7 @@ public sealed class AiServiceTests
                 To: null,
                 ProductName: null,
                 CategoryName: null,
+                Granularity: null,
                 Metric: null,
                 Limit: null),
             new AiResultExplanation("Revenue increased."));
@@ -68,7 +69,7 @@ public sealed class AiServiceTests
             Assert.Equal("json_schema", format.GetProperty("type").GetString());
             Assert.True(format.GetProperty("strict").GetBoolean());
             Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
-            Assert.Equal(8, schema.GetProperty("required").GetArrayLength());
+            Assert.Equal(9, schema.GetProperty("required").GetArrayLength());
 
             return JsonResponse(ProviderResponseForIntent(IntentJson(
                 analysis: "topProducts",
@@ -101,15 +102,17 @@ public sealed class AiServiceTests
         null,
         null,
         null,
+        null,
         null)]
     [InlineData(
-        "2026-01-01 ile 2026-03-01 arasında satış eğilimini göster.",
+        "2026-01-01 ile 2026-03-01 arasında aylık satış eğilimini göster.",
         AiAnalysisType.SalesTrend,
         null,
         "2026-01-01",
         "2026-03-01",
         null,
         null,
+        AiGranularity.Monthly,
         null,
         null)]
     [InlineData(
@@ -121,6 +124,7 @@ public sealed class AiServiceTests
         null,
         "Elektronik",
         null,
+        null,
         null)]
     [InlineData(
         "Geçen hafta iadeler hangi nedenlerle yapıldı?",
@@ -131,10 +135,12 @@ public sealed class AiServiceTests
         null,
         null,
         null,
+        null,
         null)]
     [InlineData(
         "Ciroya göre ilk 10 ürünü sırala.",
         AiAnalysisType.TopProducts,
+        null,
         null,
         null,
         null,
@@ -151,6 +157,7 @@ public sealed class AiServiceTests
         "Telefon",
         null,
         null,
+        null,
         null)]
     public async Task OpenAI_adapter_maps_different_Turkish_question_patterns(
         string question,
@@ -160,6 +167,7 @@ public sealed class AiServiceTests
         string? to,
         string? productName,
         string? categoryName,
+        AiGranularity? granularity,
         AiTopProductsMetric? metric,
         int? limit)
     {
@@ -171,6 +179,7 @@ public sealed class AiServiceTests
                 to,
                 productName,
                 categoryName,
+                granularity is null ? null : ToJsonName(granularity.Value),
                 metric is null ? null : ToJsonName(metric.Value),
                 limit)))));
         var service = CreateService(handler, new CapturingLogger<OpenAiService>());
@@ -183,14 +192,21 @@ public sealed class AiServiceTests
         Assert.Equal(to, result.To);
         Assert.Equal(productName, result.ProductName);
         Assert.Equal(categoryName, result.CategoryName);
+        Assert.Equal(granularity, result.Granularity);
         Assert.Equal(metric, result.Metric);
         Assert.Equal(limit, result.Limit);
     }
 
     [Theory]
     [InlineData("Satışlarınız geçen aya göre çok iyi görünüyor.")]
+    [InlineData("{\"analysis\":")]
     [InlineData("{\"analysis\":\"salesSummary\",\"unexpected\":true}")]
-    [InlineData("{\"analysis\":\"topProducts\",\"period\":null,\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"metric\":\"quantity\",\"limit\":51}")]
+    [InlineData("{\"analysis\":\"salesSummary\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":null,\"limit\":null,\"rawSql\":\"DROP TABLE Orders\"}")]
+    [InlineData("{\"analysis\":\"returnAnalysis\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":null,\"limit\":null,\"command\":\"delete data\"}")]
+    [InlineData("{\"analysis\":\"inventoryAnalysis\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":null,\"limit\":null}")]
+    [InlineData("{\"analysis\":\"salesTrend\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":\"yearly\",\"metric\":null,\"limit\":null}")]
+    [InlineData("{\"analysis\":\"topProducts\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":\"profit\",\"limit\":5}")]
+    [InlineData("{\"analysis\":\"topProducts\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":\"quantity\",\"limit\":51}")]
     public async Task OpenAI_adapter_rejects_free_text_or_invalid_intent_json(
         string providerOutput)
     {
@@ -298,6 +314,7 @@ public sealed class AiServiceTests
         string? to = null,
         string? productName = null,
         string? categoryName = null,
+        string? granularity = null,
         string? metric = null,
         int? limit = null) =>
         JsonSerializer.Serialize(new
@@ -308,6 +325,7 @@ public sealed class AiServiceTests
             to,
             productName,
             categoryName,
+            granularity,
             metric,
             limit
         });
@@ -343,6 +361,14 @@ public sealed class AiServiceTests
         AiTopProductsMetric.Quantity => "quantity",
         AiTopProductsMetric.Revenue => "revenue",
         _ => throw new ArgumentOutOfRangeException(nameof(metric))
+    };
+
+    private static string ToJsonName(AiGranularity granularity) => granularity switch
+    {
+        AiGranularity.Daily => "daily",
+        AiGranularity.Weekly => "weekly",
+        AiGranularity.Monthly => "monthly",
+        _ => throw new ArgumentOutOfRangeException(nameof(granularity))
     };
 
     private sealed class StubHttpMessageHandler(

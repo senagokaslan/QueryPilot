@@ -33,6 +33,8 @@ public sealed class OpenAiService(
         Extract product and category names only when stated. For topProducts, map quantity,
         units, "adet", and "en çok satan" to quantity; map revenue, sales amount, "gelir",
         and "ciro" to revenue. Extract a positive limit only when the user states one.
+        For salesTrend, extract daily, weekly, or monthly granularity. Map "günlük" to daily,
+        "haftalık" to weekly, and "aylık" to monthly.
 
         Return only the JSON object required by the response schema. Do not write SQL,
         calculate or invent sales figures, rank or name products yourself, query data,
@@ -331,6 +333,10 @@ public sealed class OpenAiService(
                 "to": { "type": ["string", "null"] },
                 "productName": { "type": ["string", "null"] },
                 "categoryName": { "type": ["string", "null"] },
+                "granularity": {
+                  "type": ["string", "null"],
+                  "enum": ["daily", "weekly", "monthly", null]
+                },
                 "metric": {
                   "type": ["string", "null"],
                   "enum": ["quantity", "revenue", null]
@@ -348,6 +354,7 @@ public sealed class OpenAiService(
                 "to",
                 "productName",
                 "categoryName",
+                "granularity",
                 "metric",
                 "limit"
               ],
