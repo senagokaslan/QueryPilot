@@ -262,6 +262,18 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Fake contract, OpenAI response mapping, Authorization header, transient retry, caller cancellation, timeout ve hassas log içeriği testleri eklendi.
 - Repository taramasında gerçek veya sabitlenmiş API key bulunmadı; business/analytics servisleri provider adapter ya da OpenAI/Gemini tiplerine doğrudan bağımlı değil.
 
+### Adım 32 - Yapılandırılmış analytics intent çıkarımı
+
+- AI sistem talimatında QueryPilot'ın desteklediği `salesSummary`, `salesTrend`, `topProducts`, `categoryPerformance` ve `returnAnalysis` seçenekleri ile her analizin kapsamı açıkça tanımlandı.
+- `AiQuestionUnderstanding`, analysis, period, from, to, productName, categoryName, metric ve limit alanlarını taşıyan provider bağımsız uygulama contractına dönüştürüldü.
+- Relative dönem ifadeleri ayrı `period`, açık tarih sınırları ayrı `from`/`to`, ürün ve kategori adları kendi alanlarında çıkarılıyor; belirtilmeyen alanlar tahmin edilmeden `null` kalıyor.
+- Top-products için adet/satış miktarı `quantity`, gelir/ciro `revenue` metriğine eşleniyor; kullanıcı tarafından verilen limit 1-50 aralığında yapılandırılmış alana alınıyor.
+- OpenAI Responses isteği resmi Structured Outputs biçimindeki `text.format`, `json_schema` ve `strict: true` ayarlarını kullanıyor; bütün alanlar required-nullable ve ek alanlar yasak.
+- Prompt ve adapter AI'dan SQL, metrik hesabı veya serbest business cevabı kabul etmiyor; JSON parse hataları, ek alanlar ve sınır dışı limitler kontrollü AI unavailable hatasına çevriliyor.
+- Soru metni `question.Contains` benzeri hazır kalıplarla yönlendirilmiyor. AI yalnız analiz türü ve parametreleri çıkarıyor; satış rakamlarını hesaplama, ürünleri sıralama ve database sonucunu üretme görevi backend analytics servisinde kalıyor.
+- `Son 3 ayda en çok satan 5 ürün ne?` örneğinde `topProducts`, `son 3 ay`, `quantity` ve `5` çıktıları gerçek HTTP çağrısı olmadan adapter seviyesinde doğrulandı.
+- Satış özeti, tarih aralıklı trend, kategori performansı, iade nedenleri, gelire göre ilk 10 ürün ve ürün adına göre özet içeren altı farklı Türkçe soru kalıbı test edildi.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -291,7 +303,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 32 kapsamında kullanıcı sorusunu güvenli ve yapılandırılmış analytics intent modeline dönüştürmek.
+Adım 33 kapsamında structured intent değerlerini doğrulanmış analytics requestlerine dönüştürmek.
 
 ## Git geçmişi
 

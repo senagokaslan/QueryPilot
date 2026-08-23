@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using QueryPilot.Api.Common.Exceptions;
@@ -16,7 +17,15 @@ public sealed class AiServiceTests
     public async Task Fake_service_returns_configured_application_contracts()
     {
         IAiService service = new FakeAiService(
-            new AiQuestionUnderstanding("sales-summary"),
+            new AiQuestionUnderstanding(
+                AiAnalysisType.SalesSummary,
+                Period: null,
+                From: null,
+                To: null,
+                ProductName: null,
+                CategoryName: null,
+                Metric: null,
+                Limit: null),
             new AiResultExplanation("Revenue increased."));
 
         var understanding = await service.UnderstandQuestionAsync("Show sales");
@@ -24,33 +33,175 @@ public sealed class AiServiceTests
             "Show sales",
             "{\"totalRevenue\":100}");
 
-        Assert.Equal("sales-summary", understanding.Text);
+        Assert.Equal(AiAnalysisType.SalesSummary, understanding.Analysis);
         Assert.Equal("Revenue increased.", explanation.Text);
     }
 
     [Fact]
-    public async Task OpenAI_adapter_maps_response_without_leaking_provider_contracts()
+    public async Task OpenAI_adapter_extracts_requested_analysis_period_metric_and_limit()
     {
         var testCredential = $"test-{Guid.NewGuid():N}";
-        var handler = new StubHttpMessageHandler((request, _) =>
+        var handler = new StubHttpMessageHandler(async (request, cancellationToken) =>
         {
             Assert.Equal(HttpMethod.Post, request.Method);
             Assert.Equal("https://api.openai.com/v1/responses", request.RequestUri?.ToString());
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
             Assert.Equal(testCredential, request.Headers.Authorization?.Parameter);
 
-            return Task.FromResult(JsonResponse(
-                "{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"sales summary\"}]}]}"));
+            var requestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
+            using var requestDocument = JsonDocument.Parse(requestJson);
+            var root = requestDocument.RootElement;
+            var instructions = root.GetProperty("instructions").GetString();
+            var format = root.GetProperty("text").GetProperty("format");
+            var schema = format.GetProperty("schema");
+
+            Assert.Equal("Son 3 ayda en çok satan 5 ürün ne?", root.GetProperty("input").GetString());
+            Assert.Contains("salesSummary", instructions);
+            Assert.Contains("salesTrend", instructions);
+            Assert.Contains("topProducts", instructions);
+            Assert.Contains("categoryPerformance", instructions);
+            Assert.Contains("returnAnalysis", instructions);
+            Assert.Contains("Do not write SQL", instructions);
+            Assert.Contains("calculate or invent sales figures", instructions);
+            Assert.Contains("rank or name products yourself", instructions);
+            Assert.Contains("backend analytics service", instructions);
+            Assert.Equal("json_schema", format.GetProperty("type").GetString());
+            Assert.True(format.GetProperty("strict").GetBoolean());
+            Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
+            Assert.Equal(8, schema.GetProperty("required").GetArrayLength());
+
+            return JsonResponse(ProviderResponseForIntent(IntentJson(
+                analysis: "topProducts",
+                period: "son 3 ay",
+                metric: "quantity",
+                limit: 5)));
         });
         var logger = new CapturingLogger<OpenAiService>();
         var service = CreateService(handler, logger, credential: testCredential);
 
-        var result = await service.UnderstandQuestionAsync("sensitive customer question");
+        var result = await service.UnderstandQuestionAsync(
+            "Son 3 ayda en çok satan 5 ürün ne?");
 
-        Assert.Equal("sales summary", result.Text);
+        Assert.Equal(AiAnalysisType.TopProducts, result.Analysis);
+        Assert.Equal("son 3 ay", result.Period);
+        Assert.Equal(AiTopProductsMetric.Quantity, result.Metric);
+        Assert.Equal(5, result.Limit);
         Assert.DoesNotContain(testCredential, logger.MessagesText);
-        Assert.DoesNotContain("sensitive customer question", logger.MessagesText);
+        Assert.DoesNotContain("Son 3 ayda", logger.MessagesText);
         Assert.Contains("ElapsedMs", logger.MessagesText);
+    }
+
+    [Theory]
+    [InlineData(
+        "Bu ayın satış özeti nedir?",
+        AiAnalysisType.SalesSummary,
+        "bu ay",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null)]
+    [InlineData(
+        "2026-01-01 ile 2026-03-01 arasında satış eğilimini göster.",
+        AiAnalysisType.SalesTrend,
+        null,
+        "2026-01-01",
+        "2026-03-01",
+        null,
+        null,
+        null,
+        null)]
+    [InlineData(
+        "Elektronik kategorisinin performansını göster.",
+        AiAnalysisType.CategoryPerformance,
+        null,
+        null,
+        null,
+        null,
+        "Elektronik",
+        null,
+        null)]
+    [InlineData(
+        "Geçen hafta iadeler hangi nedenlerle yapıldı?",
+        AiAnalysisType.ReturnAnalysis,
+        "geçen hafta",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null)]
+    [InlineData(
+        "Ciroya göre ilk 10 ürünü sırala.",
+        AiAnalysisType.TopProducts,
+        null,
+        null,
+        null,
+        null,
+        null,
+        AiTopProductsMetric.Revenue,
+        10)]
+    [InlineData(
+        "Telefon ürününün son ay satış özetini göster.",
+        AiAnalysisType.SalesSummary,
+        "son ay",
+        null,
+        null,
+        "Telefon",
+        null,
+        null,
+        null)]
+    public async Task OpenAI_adapter_maps_different_Turkish_question_patterns(
+        string question,
+        AiAnalysisType analysis,
+        string? period,
+        string? from,
+        string? to,
+        string? productName,
+        string? categoryName,
+        AiTopProductsMetric? metric,
+        int? limit)
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(
+            JsonResponse(ProviderResponseForIntent(IntentJson(
+                ToJsonName(analysis),
+                period,
+                from,
+                to,
+                productName,
+                categoryName,
+                metric is null ? null : ToJsonName(metric.Value),
+                limit)))));
+        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+
+        var result = await service.UnderstandQuestionAsync(question);
+
+        Assert.Equal(analysis, result.Analysis);
+        Assert.Equal(period, result.Period);
+        Assert.Equal(from, result.From);
+        Assert.Equal(to, result.To);
+        Assert.Equal(productName, result.ProductName);
+        Assert.Equal(categoryName, result.CategoryName);
+        Assert.Equal(metric, result.Metric);
+        Assert.Equal(limit, result.Limit);
+    }
+
+    [Theory]
+    [InlineData("Satışlarınız geçen aya göre çok iyi görünüyor.")]
+    [InlineData("{\"analysis\":\"salesSummary\",\"unexpected\":true}")]
+    [InlineData("{\"analysis\":\"topProducts\",\"period\":null,\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"metric\":\"quantity\",\"limit\":51}")]
+    public async Task OpenAI_adapter_rejects_free_text_or_invalid_intent_json(
+        string providerOutput)
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(
+            JsonResponse(ProviderResponseForIntent(providerOutput))));
+        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+
+        var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
+            service.UnderstandQuestionAsync("Satışları yorumla"));
+
+        Assert.Contains("invalid intent", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -64,15 +215,14 @@ public sealed class AiServiceTests
             {
                 1 => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable),
                 2 => new HttpResponseMessage(HttpStatusCode.TooManyRequests),
-                _ => JsonResponse(
-                    "{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"done\"}]}]}")
+                _ => JsonResponse(ProviderResponseForIntent(IntentJson("salesSummary")))
             });
         });
         var service = CreateService(handler, new CapturingLogger<OpenAiService>());
 
         var result = await service.UnderstandQuestionAsync("Show sales");
 
-        Assert.Equal("done", result.Text);
+        Assert.Equal(AiAnalysisType.SalesSummary, result.Analysis);
         Assert.Equal(3, attempts);
     }
 
@@ -140,6 +290,60 @@ public sealed class AiServiceTests
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
+
+    private static string IntentJson(
+        string analysis,
+        string? period = null,
+        string? from = null,
+        string? to = null,
+        string? productName = null,
+        string? categoryName = null,
+        string? metric = null,
+        int? limit = null) =>
+        JsonSerializer.Serialize(new
+        {
+            analysis,
+            period,
+            from,
+            to,
+            productName,
+            categoryName,
+            metric,
+            limit
+        });
+
+    private static string ProviderResponseForIntent(string intentJson) =>
+        JsonSerializer.Serialize(new
+        {
+            output = new[]
+            {
+                new
+                {
+                    content = new[]
+                    {
+                        new { type = "output_text", text = intentJson }
+                    }
+                }
+            }
+        });
+
+    private static string ToJsonName(AiAnalysisType analysis) => analysis switch
+    {
+        AiAnalysisType.Unknown => "unknown",
+        AiAnalysisType.SalesSummary => "salesSummary",
+        AiAnalysisType.SalesTrend => "salesTrend",
+        AiAnalysisType.TopProducts => "topProducts",
+        AiAnalysisType.CategoryPerformance => "categoryPerformance",
+        AiAnalysisType.ReturnAnalysis => "returnAnalysis",
+        _ => throw new ArgumentOutOfRangeException(nameof(analysis))
+    };
+
+    private static string ToJsonName(AiTopProductsMetric metric) => metric switch
+    {
+        AiTopProductsMetric.Quantity => "quantity",
+        AiTopProductsMetric.Revenue => "revenue",
+        _ => throw new ArgumentOutOfRangeException(nameof(metric))
+    };
 
     private sealed class StubHttpMessageHandler(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send)

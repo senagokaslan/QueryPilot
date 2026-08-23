@@ -18,15 +18,40 @@ public sealed class OpenAiService(
     private const string ProviderName = "OpenAI";
     private const int MaximumAttempts = 3;
 
-    private const string UnderstandInstructions =
-        "Understand the user's analytics question. Return a concise interpretation " +
-        "that can be converted into a backend analytics request. Do not calculate metrics.";
+    private const string UnderstandInstructions = """
+        You are the intent parser for QueryPilot. QueryPilot supports only these analyses:
+        - salesSummary: total revenue, order count, units sold, and average order value.
+        - salesTrend: revenue, order count, and units sold grouped over time.
+        - topProducts: products ranked by quantity or revenue.
+        - categoryPerformance: category revenue, units sold, and revenue share.
+        - returnAnalysis: return count, quantity, amount, rate, reasons, and products.
+
+        Determine which single analysis the user requests. Use unknown when the request is
+        unsupported or no analysis can be determined. Extract relative periods such as
+        "son 3 ay" into period. Extract explicit date boundaries into from and to using
+        ISO-8601 text; do not invent missing dates or resolve relative periods yourself.
+        Extract product and category names only when stated. For topProducts, map quantity,
+        units, "adet", and "en çok satan" to quantity; map revenue, sales amount, "gelir",
+        and "ciro" to revenue. Extract a positive limit only when the user states one.
+
+        Return only the JSON object required by the response schema. Do not write SQL,
+        calculate or invent sales figures, rank or name products yourself, query data,
+        or answer the business question in free text. Extract intent and parameters only;
+        the backend analytics service will query the database and calculate every result.
+        """;
 
     private const string ExplainInstructions =
         "Explain the supplied backend analytics result clearly and concisely. " +
         "Use only the supplied result; do not invent or recalculate values.";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+
+    private static readonly OpenAiTextConfiguration IntentTextConfiguration = new(
+        new OpenAiTextFormat(
+            Type: "json_schema",
+            Name: "querypilot_analytics_intent",
+            Strict: true,
+            Schema: CreateIntentSchema()));
 
     public async Task<AiQuestionUnderstanding> UnderstandQuestionAsync(
         string question,
@@ -38,9 +63,36 @@ public sealed class OpenAiService(
             "understand-question",
             UnderstandInstructions,
             question,
+            IntentTextConfiguration,
             cancellationToken);
 
-        return new AiQuestionUnderstanding(text);
+        try
+        {
+            var intent = JsonSerializer.Deserialize<AiQuestionUnderstanding>(
+                text,
+                JsonOptions)
+                ?? throw new JsonException("AI intent response was null.");
+
+            if (intent.Limit is <= 0 or > 50)
+            {
+                throw new JsonException("AI intent limit is outside the supported range.");
+            }
+
+            if (intent.Analysis != AiAnalysisType.TopProducts
+                && (intent.Metric is not null || intent.Limit is not null))
+            {
+                throw new JsonException(
+                    "AI intent supplied top-products parameters for another analysis.");
+            }
+
+            return intent;
+        }
+        catch (JsonException exception)
+        {
+            throw new AiServiceUnavailableException(
+                "The AI provider returned an invalid intent response.",
+                exception);
+        }
     }
 
     public async Task<AiResultExplanation> ExplainResultAsync(
@@ -56,6 +108,7 @@ public sealed class OpenAiService(
             "explain-result",
             ExplainInstructions,
             input,
+            textConfiguration: null,
             cancellationToken);
 
         return new AiResultExplanation(text);
@@ -65,6 +118,7 @@ public sealed class OpenAiService(
         string operation,
         string instructions,
         string input,
+        OpenAiTextConfiguration? textConfiguration,
         CancellationToken cancellationToken)
     {
         var settings = ValidateOptions(options.Value);
@@ -84,7 +138,8 @@ public sealed class OpenAiService(
                     using var request = CreateRequest(
                         settings,
                         instructions,
-                        input);
+                        input,
+                        textConfiguration);
                     using var response = await httpClient.SendAsync(
                         request,
                         HttpCompletionOption.ResponseHeadersRead,
@@ -158,7 +213,8 @@ public sealed class OpenAiService(
     private static HttpRequestMessage CreateRequest(
         ValidatedAiOptions settings,
         string instructions,
-        string input)
+        string input,
+        OpenAiTextConfiguration? textConfiguration)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "responses")
         {
@@ -167,7 +223,8 @@ public sealed class OpenAiService(
                     settings.Model,
                     instructions,
                     input,
-                    Store: false),
+                    Store: false,
+                    Text: textConfiguration),
                 options: JsonOptions)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue(
@@ -239,6 +296,68 @@ public sealed class OpenAiService(
         CancellationToken cancellationToken) =>
         Task.Delay(TimeSpan.FromMilliseconds(200 * attempt), cancellationToken);
 
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        };
+        serializerOptions.Converters.Add(
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+
+        return serializerOptions;
+    }
+
+    private static JsonElement CreateIntentSchema()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": {
+                "analysis": {
+                  "type": "string",
+                  "enum": [
+                    "unknown",
+                    "salesSummary",
+                    "salesTrend",
+                    "topProducts",
+                    "categoryPerformance",
+                    "returnAnalysis"
+                  ]
+                },
+                "period": { "type": ["string", "null"] },
+                "from": { "type": ["string", "null"] },
+                "to": { "type": ["string", "null"] },
+                "productName": { "type": ["string", "null"] },
+                "categoryName": { "type": ["string", "null"] },
+                "metric": {
+                  "type": ["string", "null"],
+                  "enum": ["quantity", "revenue", null]
+                },
+                "limit": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 50
+                }
+              },
+              "required": [
+                "analysis",
+                "period",
+                "from",
+                "to",
+                "productName",
+                "categoryName",
+                "metric",
+                "limit"
+              ],
+              "additionalProperties": false
+            }
+            """);
+
+        return document.RootElement.Clone();
+    }
+
     private sealed record ValidatedAiOptions(
         string Provider,
         string Model,
@@ -249,7 +368,16 @@ public sealed class OpenAiService(
         string Model,
         string Instructions,
         string Input,
-        bool Store);
+        bool Store,
+        OpenAiTextConfiguration? Text);
+
+    private sealed record OpenAiTextConfiguration(OpenAiTextFormat Format);
+
+    private sealed record OpenAiTextFormat(
+        string Type,
+        string Name,
+        bool Strict,
+        JsonElement Schema);
 
     private sealed record OpenAiResponse(
         IReadOnlyList<OpenAiOutputItem> Output);

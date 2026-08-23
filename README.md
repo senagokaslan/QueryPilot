@@ -63,6 +63,8 @@ Deployment ortamında aynı değerler `AI__Provider`, `AI__Model`, `AI__ApiKey` 
 
 AI request logları provider, model, operasyon, sonuç ve süreyi içerir. API key, kullanıcı sorusu, analytics JSON'u ve provider'a gönderilen tam prompt loglanmaz.
 
+Soru anlama çağrısı yalnız structured JSON intent döndürür. Desteklenen analizler `salesSummary`, `salesTrend`, `topProducts`, `categoryPerformance` ve `returnAnalysis` değerleridir. Intent ayrıca dönem veya açık tarihleri, ürün/kategori adını, top-products metriğini ve sonucu sınırlandıran limit değerini taşıyabilir. AI katmanı SQL üretmez ve metrikleri kendisi hesaplamaz.
+
 ## Yerel PostgreSQL
 
 Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.
