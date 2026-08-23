@@ -353,6 +353,21 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - PostgreSQL entegrasyon testi rollback sonrasında benzersiz kategori prefix'inin kalmadığını ayrı context ile doğruluyor; production database kullanılmıyor ve kalıcı test kaydı bırakılmıyor. Mevcut direct-controller resilience testi AI provider olmadan analytics'in çalıştığını doğrulamaya devam ediyor.
 - Basit akış diyagramı `docs/ai-query-flow.md` belgesine eklendi; request validation, provider failure, unsupported, clarification, typed routing, structured data ve optional açıklama dallarını gösteriyor.
 
+### Adım 40 - Order ve Return business unit testleri
+
+- Mevcut `QueryPilot.Api.Tests` unit test projesinin `QueryPilot.sln` içinde olduğu `dotnet sln list` ile doğrulandı.
+- Order create testleri her `LineTotal` değerinin Product fiyatı × Quantity, `Order.TotalAmount` değerinin satır toplamları toplamı olarak backend'de hesaplandığını doğruluyor.
+- Request DTO'larında unmapped alan reddi sayesinde istemcinin `unitPrice`, `lineTotal` veya `totalAmount` göndermesi JsonException ile engelleniyor; finansal değerler istemciden kabul edilmiyor.
+- Siparişten sonra Product fiyatı 100'den 999'a değiştirilse bile OrderItem UnitPrice 100, LineTotal ve Order Total 200 snapshot olarak kalıyor.
+- Olmayan/pasif müşteri ve ürün senaryoları NotFound/Conflict ile sonuçlanıyor; order kaydı oluşmuyor ve SaveChanges sayacı sıfır kalıyor.
+- Order ve Return quantity 0/negatif senaryoları validation aşamasında duruyor ve SaveChanges çağırmıyor.
+- Beş adetlik satırda iki adet partial ve kalan üç adet full return; remaining quantity, toplam returned quantity ve snapshot amount değerleriyle test edildi.
+- Önceki iki adet iade hesaba katıldığında dört adetlik ikinci isteğin over-return olarak reddedildiği ve yeni kayıt kaydedilmediği doğrulandı.
+- Product fiyatı sonradan 999 olsa bile iki adet iadenin Amount değeri OrderItem üzerindeki 100 fiyat snapshotından 200 olarak hesaplanıyor.
+- `CountingSaveChangesInterceptor`, missing/inactive/invalid/over-return senaryolarında SaveChanges çağrı sayısının sıfır olduğunu doğrudan ölçüyor.
+- Return production kodu değiştirilmeden PostgreSQL `FOR UPDATE` sorgusunu kullanmaya devam ediyor. Return servis testleri relational SQLite üzerinde çalışıyor; SQLite'ın desteklemediği `FOR UPDATE` eki yalnız test projesindeki command interceptor ile kaldırılıyor.
+- Senaryoyu açıklayan test adlarıyla solution test sayısı 86'ya yükseldi; bütün testler başarılı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -382,7 +397,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 40 için sıradaki roadmap checklist'i bekleniyor.
+Adım 41 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 
