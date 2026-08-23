@@ -145,6 +145,16 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Aynı kalan miktar için eşzamanlı iki istekten biri 201, diğeri 409 aldı; toplam iade miktarı satın alınan miktarı aşmadı.
 - Order detail iade özetinde toplam iade miktarı ve tutarın finansal olarak tutarlı olduğu doğrulandı.
 
+### Adım 22 - İade kabul senaryoları
+
+- Beş adetlik sipariş satırından önce 2, sonra kalan 3 adet iade edildi; istekler 201, kalan miktarlar sırasıyla 3 ve 0 döndürdü.
+- Tamamı iade edilmiş satıra yeni iade ve ayrı bir satırda 2 adetten sonra kalanı aşan 4 adetlik iade 409 ile reddedildi.
+- `Quantity` değeri 0 ve negatif olan istekler 400, olmayan `OrderItem` isteği 404 döndürdü.
+- Test ürününün fiyatı siparişten sonra 12,34'ten 99,99'a değiştirildi; iadeler eski `OrderItem.UnitPrice` değeriyle 24,68 ve 37,02 olarak hesaplandı.
+- Boşlukları temizlenen iade nedeni veritabanında `Checklist partial return` olarak saklandı.
+- SQL doğrulamasında test satırlarının toplam iade miktarları 5/5, 2/5 ve 3/5 bulundu; hiçbiri satın alınan miktarı aşmadı.
+- Aynı beş adetlik satıra eşzamanlı gönderilen iki adet 3'lük iade isteğinden biri 201, diğeri 409 aldı; veritabanında yalnızca 3 adet iade oluştu.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
