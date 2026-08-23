@@ -6,5 +6,6 @@ namespace QueryPilot.Api.Features.Ai;
 public enum AiAnalyticsExecutionStatus
 {
     Completed = 1,
-    NeedsClarification = 2
+    NeedsClarification = 2,
+    Unsupported = 3
 }

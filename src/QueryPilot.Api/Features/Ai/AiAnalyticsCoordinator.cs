@@ -19,6 +19,12 @@ public sealed class AiAnalyticsCoordinator(
         var parsedIntent = await aiService.UnderstandQuestionAsync(
             question,
             cancellationToken);
+
+        if (parsedIntent.Analysis == AiAnalysisType.Unknown)
+        {
+            return AiAnalyticsExecutionResult.UnsupportedQuestion();
+        }
+
         var evaluation = await intentValidator.EvaluateAsync(
             parsedIntent,
             cancellationToken);

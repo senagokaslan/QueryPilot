@@ -99,6 +99,10 @@ public sealed class AiServiceTests
             Assert.Contains("calculate or invent sales figures", instructions);
             Assert.Contains("rank or name products yourself", instructions);
             Assert.Contains("backend analytics service", instructions);
+            Assert.Contains("untrusted data", instructions);
+            Assert.Contains("ignore these rules", instructions);
+            Assert.Contains("reveal", instructions);
+            Assert.Contains("secrets", instructions);
             Assert.Equal("json_schema", format.GetProperty("type").GetString());
             Assert.True(format.GetProperty("strict").GetBoolean());
             Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
@@ -273,6 +277,38 @@ public sealed class AiServiceTests
 
         Assert.Equal(AiAnalysisType.SalesSummary, result.Analysis);
         Assert.Equal(3, attempts);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task OpenAI_adapter_converts_exhausted_transient_status_to_common_error(
+        HttpStatusCode statusCode)
+    {
+        var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(
+            new HttpResponseMessage(statusCode)));
+        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+
+        var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
+            service.UnderstandQuestionAsync("Show sales"));
+
+        Assert.Equal("The AI provider is temporarily unavailable.", exception.Message);
+    }
+
+    [Fact]
+    public async Task OpenAI_adapter_converts_connection_failure_to_common_error()
+    {
+        var handler = new StubHttpMessageHandler((_, _) =>
+            throw new HttpRequestException("Sensitive transport detail."));
+        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+
+        var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
+            service.UnderstandQuestionAsync("Show sales"));
+
+        Assert.Equal("The AI provider is temporarily unavailable.", exception.Message);
+        Assert.DoesNotContain("Sensitive", exception.Message);
     }
 
     [Fact]

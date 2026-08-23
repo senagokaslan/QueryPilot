@@ -71,6 +71,8 @@ Soru gerekli alanları içermiyorsa coordinator `NeedsClarification` sonucu dön
 
 Doğrulanmış analytics sonucu provider'a JSON DTO olarak yalnız kısa Türkçe açıklama üretmesi için gönderilir. AI'a DTO dışında sayı, yüzde, tarih, ürün, müşteri veya kategori eklememesi ve değerleri yeniden hesaplamaması açıkça bildirilir. Açıklama en fazla 500 karakterdir; kaynak JSON'da bulunmayan numeric değer içeren veya sınırı aşan metin `RejectedUnsafe` olarak işaretlenir ve frontend'e gösterilecek metin taşınmaz. Provider hatasında açıklama `Unavailable` olur. Her iki durumda da backend'in hesapladığı `data` aynen korunur; frontend `explanation.status` alanına göre açıklamayı isteğe bağlı gösterebilir.
 
+BI kapsamı dışındaki sorular `Unsupported` durumuyla, desteklenen beş analiz ve örnek soru listesiyle cevaplanır; analytics sorgusu çalıştırılmaz. Intent provider timeout'u, 429/5xx cevabı, bağlantı hatası veya geçersiz provider çıktısı nedeniyle çıkarılamazsa ortak ve detay sızdırmayan 503 response'u kullanılır. Açıklama çağrısı analytics hesabından sonra başarısız olursa response numeric `data` alanını korur ve kullanıcıya güvenli bir `warning` verir. Doğrudan `/api/analytics/*` endpointleri AI servisinden ve API key'den bağımsızdır.
+
 ## Yerel PostgreSQL
 
 Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.

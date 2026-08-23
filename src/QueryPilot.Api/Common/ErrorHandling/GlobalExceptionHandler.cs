@@ -76,7 +76,7 @@ public sealed class GlobalExceptionHandler(
             {
                 Status = StatusCodes.Status503ServiceUnavailable,
                 Title = "AI service is temporarily unavailable.",
-                Detail = exception.Message,
+                Detail = "The AI request could not be completed. Please try again later.",
                 Type = ProblemDetailsTypes.ServiceUnavailable
             },
             _ => new ProblemDetails

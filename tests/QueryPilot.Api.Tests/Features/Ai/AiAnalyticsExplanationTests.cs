@@ -45,6 +45,7 @@ public sealed class AiAnalyticsExplanationTests
                 .GetDecimal());
         Assert.Equal(AiExplanationStatus.Available, result.Explanation!.Status);
         Assert.Contains("azaldı", result.Explanation.Text);
+        Assert.Null(result.Warning);
     }
 
     [Fact]
@@ -63,6 +64,7 @@ public sealed class AiAnalyticsExplanationTests
         Assert.Same(analyticsResponse, result.Data);
         Assert.Equal(AiExplanationStatus.Unavailable, result.Explanation!.Status);
         Assert.Null(result.Explanation.Text);
+        Assert.Contains("numeric analytics sonucu geçerlidir", result.Warning);
     }
 
     [Fact]
@@ -81,6 +83,7 @@ public sealed class AiAnalyticsExplanationTests
         Assert.Same(analyticsResponse, result.Data);
         Assert.Equal(AiExplanationStatus.RejectedUnsafe, result.Explanation!.Status);
         Assert.Null(result.Explanation.Text);
+        Assert.Contains("numeric analytics sonucu geçerlidir", result.Warning);
     }
 
     [Fact]
