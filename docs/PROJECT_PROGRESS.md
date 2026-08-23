@@ -200,6 +200,17 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - B ürününe yeni büyük sipariş eklendikten sonra adet liderliği A'dan B'ye dinamik olarak geçti; miktar 15 ve gelir 450 olarak yeniden hesaplandı.
 - EF komut kaydında gruplama, toplam, sıralama ve limitin PostgreSQL'e çevrildiği doğrulandı; test transaction'ı rollback edildi.
 
+### Adım 27 - Category Performance analizi
+
+- `GetCategoryPerformanceAsync`, seçilen UTC yarı-açık tarih aralığındaki `Completed` sipariş satırlarını Product ve Category ile birleştiriyor.
+- Her kategori için snapshot `OrderItem.LineTotal` geliri ve `OrderItem.Quantity` satış adedi PostgreSQL'de gruplanıp toplanıyor.
+- Genel gelir kategori aggregate sonuçlarının toplamından hesaplanıyor; her kategori payı `category revenue / total revenue * 100` formülüyle backend'de numeric olarak üretiliyor.
+- Genel gelir sıfırken bölme yapılmıyor; boş dönem numeric sıfır toplam ve boş kategori listesi döndürüyor.
+- Kategoriler revenue azalan, eşitlikte CategoryId artan sırada dönüyor; response rank, category id, name, revenue, units sold ve revenue share percentage içeriyor.
+- Product veya Category `IsActive` filtresi uygulanmıyor; pasifleşmiş kayıtların tarihsel satışları analytics sonucunda korunuyor.
+- Rollback fixture testinde pasif kategorinin 300 geliri ve 3 adedi, aktif kategorinin 100 geliri ve 10 adedi hesaplandı; kategori gelirlerinin toplamı 400 genel gelire, payların toplamı yüzde 100'e eşit bulundu.
+- İptal edilmiş ve bitiş anındaki siparişler sonuca girmedi; EF komut kaydında Product/Category join, grouping, sum ve ordering PostgreSQL'e çevrildi, `IsActive` filtresi bulunmadı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -229,7 +240,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 27 kapsamında Category Performance analizini oluşturmak.
+Adım 28 kapsamında mevcut ve önceki dönem karşılaştırmasını eklemek.
 
 ## Git geçmişi
 

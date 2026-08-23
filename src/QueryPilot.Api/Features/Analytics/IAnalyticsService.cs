@@ -26,4 +26,9 @@ public interface IAnalyticsService
         int? limit = null,
         long? categoryId = null,
         CancellationToken cancellationToken = default);
+
+    Task<CategoryPerformanceResponse> GetCategoryPerformanceAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default);
 }

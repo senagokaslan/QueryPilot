@@ -251,6 +251,55 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
             rankedProducts);
     }
 
+    public async Task<CategoryPerformanceResponse> GetCategoryPerformanceAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        var range = CreateDateRange(from, to);
+        var fromUtc = range.FromUtc.UtcDateTime;
+        var toUtc = range.ToUtc.UtcDateTime;
+        var categoryMetrics = await dbContext.OrderItems
+            .AsNoTracking()
+            .Where(item =>
+                item.Order.Status == IncludedOrderStatus
+                && item.Order.OrderDate >= fromUtc
+                && item.Order.OrderDate < toUtc)
+            .GroupBy(item => new
+            {
+                item.Product.CategoryId,
+                CategoryName = item.Product.Category.Name
+            })
+            .Select(group => new
+            {
+                group.Key.CategoryId,
+                group.Key.CategoryName,
+                Revenue = group.Sum(item => item.LineTotal),
+                UnitsSold = group.Sum(item => (long)item.Quantity)
+            })
+            .OrderByDescending(category => category.Revenue)
+            .ThenBy(category => category.CategoryId)
+            .ToListAsync(cancellationToken);
+        var totalRevenue = categoryMetrics.Sum(category => category.Revenue);
+        var categories = categoryMetrics
+            .Select((category, index) => new CategoryPerformanceItemResponse(
+                index + 1,
+                category.CategoryId,
+                category.CategoryName,
+                category.Revenue,
+                category.UnitsSold,
+                totalRevenue == AnalyticsResponseDefaults.Money
+                    ? AnalyticsResponseDefaults.Percentage
+                    : category.Revenue / totalRevenue * 100m))
+            .ToArray();
+
+        return new CategoryPerformanceResponse(
+            range.FromUtc,
+            range.ToUtc,
+            totalRevenue,
+            categories);
+    }
+
     private static void ValidateGranularity(AnalyticsGranularity granularity)
     {
         if (!Enum.IsDefined(granularity))
