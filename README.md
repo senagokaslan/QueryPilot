@@ -87,6 +87,24 @@ Başarılı response `status`, analiz türü ve kullanılan UTC parametreleri ta
 
 Intent extraction, validation, analytics routing ve açıklama adımlarının özeti için [AI query akışı](docs/ai-query-flow.md) belgesine bakın.
 
+## Swagger ve CORS politikası
+
+Swagger doküman başlığı `QueryPilot API` ve versiyonu `v1` olarak tanımlıdır. Endpointler `Categories`, `Products`, `Customers`, `Orders`, `Returns`, `Analytics` ve `AI` etiketleri altında gruplanır. Request/response şemaları, validation/business hata tipleri ve ortak 500 cevabı OpenAPI'de gösterilir; bütün enum seçenekleri JSON contractıyla uyumlu string değerlerdir. Swagger'daki açıklama ve örnekler yalnız API dokümantasyonudur; production verisi, analytics sonucu veya seed talimatı değildir.
+
+Swagger yalnız `Swagger:Enabled=true` ve environment Production değilken açılır. Development ayarında açıktır. Production ortamında configuration yanlışlıkla true olsa bile middleware eklenmez ve `/swagger/v1/swagger.json` 404 döndürür.
+
+CORS izinleri `Cors:AllowedOrigins` exact origin listesinden okunur. Development için varsayılan frontend origin'i `http://localhost:5173` değeridir. Production en az bir origin ister ve yalnız HTTPS scheme/host/port originlerini kabul eder; wildcard, path, query, fragment, embedded credential ve duplicate değerler startup sırasında reddedilir. `Cors:AllowCredentials=true` kullanılabilir, ancak wildcard hiçbir durumda kabul edilmez.
+
+Production örneği:
+
+```text
+Cors__AllowedOrigins__0=https://app.example.com
+Cors__AllowedOrigins__1=https://admin.example.com
+Cors__AllowCredentials=true
+```
+
+Listede bulunmayan origin'in preflight isteği başarılı CORS header'ı alamaz. Origin karşılaştırması exact yapılır; `https://app.example.com` izni başka scheme, subdomain veya portu kapsamaz.
+
 `QueryPilot.Api.Tests` projesi solution'a dahildir. Order testleri istemcinin finansal toplam gönderemediğini, `OrderItem.UnitPrice`/`LineTotal` snapshotlarını ve `Order.TotalAmount` değerini backend ürün fiyatlarından hesaplandığını doğrular. Return testleri partial/full/over-return kurallarını ve `Return.Amount` değerinin güncel Product fiyatı yerine OrderItem fiyat snapshotından üretildiğini kapsar. Invalid business senaryolarında bir EF `SaveChangesInterceptor` ile `SaveChanges` çağrı sayısının sıfır kaldığı kontrol edilir.
 
 `QueryPilot.Api.IntegrationTests` ayrı bir PostgreSQL integration test projesidir. Testler yalnız loopback PostgreSQL sunucusunu kabul eder, `querypilot_test_<guid>` adında benzersiz bir database oluşturur, migrationları uygular, elle hesaplanabilir fixture'ı yükler ve test sonunda yalnız bu kesin isim kalıbındaki database'i kaldırıp silindiğini doğrular. Development veya production database adı hiçbir zaman test bağlantısı olarak kullanılmaz.

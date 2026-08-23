@@ -412,6 +412,20 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Test ürün/kategori adlarını GUID ile üretiyor; production kodunda lider ürün adı veya sırası bulunmuyor. Beklenen yeni quantity, revenue, summary ve kategori payı sabit sonuçtan değil eklenen completed order nesnelerinin hesaplanan `GrowthDelta` değerinden türetiliyor.
 - Yeni dinamik senaryoyla gerçek PostgreSQL integration paketi 12/12 başarılı oldu.
 
+### Adım 44 - Swagger ve CORS production politikası
+
+- Swagger `QueryPilot API` başlığı, `v1` versiyonu ve PostgreSQL/analytics/AI sorumluluklarını açıklayan proje tanımıyla yapılandırıldı.
+- Swagger açıklaması örneklerin yalnız API contract dokümantasyonu olduğunu; production verisi, analytics sonucu veya seed talimatı olmadığını açıkça belirtiyor.
+- Endpointler generated OpenAPI içinde tam olarak `Categories`, `Products`, `Customers`, `Orders`, `Returns`, `Analytics` ve `AI` tagleriyle gruplanıyor.
+- Category create ve AI query operasyonlarında request, success response, 400/409/503 hata response şemaları generated JSON üzerinden kontrol edildi. Ortak operation filter bütün 4xx/5xx içeriklerini runtime ile aynı `application/problem+json` tipine getiriyor ve genel 500 `ProblemDetails` cevabını belgeliyor.
+- MVC JSON options ve enum metadata ile OrderStatus, AnalyticsGranularity, TopProductsMetric ve diğer enumlar Swagger'da integer yerine anlaşılır string seçenekleri gösteriyor.
+- `Cors:AllowedOrigins` artık gerçek named CORS policy'ye bağlı ve middleware pipeline'ında kullanılıyor. Development frontend origin'i `http://localhost:5173` olarak eklendi.
+- Origin doğrulaması wildcard, path/query/fragment, embedded credential ve duplicate girdileri reddediyor. Production en az bir exact HTTPS origin gerektiriyor.
+- `Cors:AllowCredentials=true` yalnız explicit origin listesiyle çalışıyor; wildcard hiçbir environment'ta kabul edilmiyor.
+- Allowed origin preflight cevabında exact `Access-Control-Allow-Origin`, credentials ve method header'ları doğrulandı. Disallowed origin aynı header'ları alamadı.
+- Swagger development/configured non-production ortamında açılıyor. Production'da `Swagger:Enabled=true` verilse bile middleware kapalı ve Swagger JSON endpointi 404.
+- Production WebApplicationFactory testi exact HTTPS origin'i kabul edip farklı origin'i reddetti; CORS validator unit testleri wildcard ve HTTP production origin senaryolarını kapsıyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -441,7 +455,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 44 için sıradaki roadmap checklist'i bekleniyor.
+Adım 45 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 

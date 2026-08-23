@@ -10,18 +10,29 @@ namespace QueryPilot.Api.IntegrationTests;
 public sealed class QueryPilotApiFactory : WebApplicationFactory<Program>
 {
     private readonly PostgreSqlDatabaseFixture database;
+    private readonly string environment;
+    private readonly IReadOnlyDictionary<string, string?> settings;
 
-    public QueryPilotApiFactory(PostgreSqlDatabaseFixture database)
+    public QueryPilotApiFactory(
+        PostgreSqlDatabaseFixture database,
+        string environment = "Testing",
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         this.database = database;
+        this.environment = environment;
+        this.settings = settings ?? new Dictionary<string, string?>();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(environment);
         builder.UseSetting(
             "ConnectionStrings:DefaultConnection",
             database.TestConnectionString);
+        foreach (var (key, value) in settings)
+        {
+            builder.UseSetting(key, value);
+        }
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<IAiService>();
