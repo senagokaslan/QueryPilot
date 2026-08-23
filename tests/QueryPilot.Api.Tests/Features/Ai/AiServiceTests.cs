@@ -39,6 +39,39 @@ public sealed class AiServiceTests
     }
 
     [Fact]
+    public async Task Explanation_request_sends_backend_dto_with_grounding_instructions()
+    {
+        const string question = "Geçen aya göre satış nasıl?";
+        const string analyticsJson =
+            "{\"totalRevenue\":540000,\"previousValue\":610000}";
+        var handler = new StubHttpMessageHandler(async (request, cancellationToken) =>
+        {
+            var requestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
+            using var requestDocument = JsonDocument.Parse(requestJson);
+            var root = requestDocument.RootElement;
+            var instructions = root.GetProperty("instructions").GetString();
+            var input = root.GetProperty("input").GetString();
+
+            Assert.Contains("Yalnızca verilen JSON DTO", instructions);
+            Assert.Contains("yeniden hesaplama", instructions);
+            Assert.Contains("sayı, yüzde, tarih, ürün, müşteri", instructions);
+            Assert.Contains("artış, azalış", instructions);
+            Assert.Contains("500 karakter", instructions);
+            Assert.Contains(question, input);
+            Assert.Contains(analyticsJson, input);
+            Assert.False(root.TryGetProperty("text", out _));
+
+            return JsonResponse(ProviderResponseForIntent(
+                "Gelir 610.000 TL'den 540.000 TL'ye gerileyerek azaldı."));
+        });
+        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+
+        var result = await service.ExplainResultAsync(question, analyticsJson);
+
+        Assert.Contains("azaldı", result.Text);
+    }
+
+    [Fact]
     public async Task OpenAI_adapter_extracts_requested_analysis_period_metric_and_limit()
     {
         var testCredential = $"test-{Guid.NewGuid():N}";

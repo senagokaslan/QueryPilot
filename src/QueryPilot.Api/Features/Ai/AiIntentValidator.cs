@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using QueryPilot.Api.Common.Exceptions;
 using QueryPilot.Api.Data;
 using QueryPilot.Api.Features.Analytics;
+using QueryPilot.Api.Features.Products;
 
 namespace QueryPilot.Api.Features.Ai;
 
@@ -12,6 +13,53 @@ public sealed partial class AiIntentValidator(
     TimeProvider timeProvider) : IAiIntentValidator
 {
     private static readonly CultureInfo TurkishCulture = CultureInfo.GetCultureInfo("tr-TR");
+
+    public async Task<AiIntentEvaluationResult> EvaluateAsync(
+        AiQuestionUnderstanding intent,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+
+        var requiredFields = GetMissingRequiredFields(intent);
+        if (requiredFields.Count > 0)
+        {
+            return AiIntentEvaluationResult.Clarify(requiredFields);
+        }
+
+        var categoryName = NormalizeOptional(intent.CategoryName);
+        if (categoryName is not null
+            && !await CategoryExistsAsync(categoryName, cancellationToken))
+        {
+            requiredFields.Add(new AiClarificationField(
+                nameof(intent.CategoryName),
+                $"'{categoryName}' kategorisi bulunamadı. Kategori adını kontrol eder misiniz?",
+                []));
+        }
+
+        var productName = NormalizeOptional(intent.ProductName);
+        if (productName is not null)
+        {
+            var productMatchCount = await GetProductMatches(productName)
+                .Take(2)
+                .CountAsync(cancellationToken);
+
+            if (productMatchCount != 1)
+            {
+                var message = productMatchCount == 0
+                    ? $"'{productName}' ürünü bulunamadı. Ürün adını kontrol eder misiniz?"
+                    : $"'{productName}' birden fazla ürünle eşleşiyor. Hangi ürünü istiyorsunuz?";
+                requiredFields.Add(new AiClarificationField(
+                    nameof(intent.ProductName),
+                    message,
+                    []));
+            }
+        }
+
+        return requiredFields.Count > 0
+            ? AiIntentEvaluationResult.Clarify(requiredFields)
+            : AiIntentEvaluationResult.Valid(
+                await ValidateAsync(intent, cancellationToken));
+    }
 
     public async Task<ValidatedAnalyticsIntent> ValidateAsync(
         AiQuestionUnderstanding intent,
@@ -34,6 +82,7 @@ public sealed partial class AiIntentValidator(
         var limit = ValidateLimit(intent, errors);
         var productName = NormalizeOptional(intent.ProductName);
         var categoryName = NormalizeOptional(intent.CategoryName);
+        long? productId = null;
         long? categoryId = null;
 
         if (categoryName is not null)
@@ -51,6 +100,24 @@ public sealed partial class AiIntentValidator(
             }
         }
 
+        if (productName is not null)
+        {
+            var productIds = await GetProductMatches(productName)
+                .Select(product => product.Id)
+                .Take(2)
+                .ToListAsync(cancellationToken);
+
+            if (productIds.Count != 1)
+            {
+                errors[nameof(intent.ProductName)] =
+                    ["The requested product must match exactly one database record."];
+            }
+            else
+            {
+                productId = productIds[0];
+            }
+        }
+
         if (errors.Count > 0 || range is null)
         {
             throw new RequestValidationException(
@@ -62,12 +129,98 @@ public sealed partial class AiIntentValidator(
             intent.Analysis,
             range.Value.FromUtc,
             range.Value.ToUtc,
+            productId,
             productName,
             categoryId,
             categoryName,
             granularity,
             metric,
             limit);
+    }
+
+    private static List<AiClarificationField> GetMissingRequiredFields(
+        AiQuestionUnderstanding intent)
+    {
+        var requiredFields = new List<AiClarificationField>();
+
+        if (!Enum.IsDefined(intent.Analysis)
+            || intent.Analysis == AiAnalysisType.Unknown)
+        {
+            requiredFields.Add(new AiClarificationField(
+                nameof(intent.Analysis),
+                "Hangi analizi istiyorsunuz?",
+                [
+                    "salesSummary",
+                    "salesTrend",
+                    "topProducts",
+                    "categoryPerformance",
+                    "returnAnalysis"
+                ]));
+        }
+
+        var period = NormalizeOptional(intent.Period);
+        var from = NormalizeOptional(intent.From);
+        var to = NormalizeOptional(intent.To);
+        if (period is null && from is null && to is null)
+        {
+            requiredFields.Add(new AiClarificationField(
+                "dateRange",
+                "Hangi tarih aralığını veya dönemi analiz edelim?",
+                ["period", "from", "to"]));
+        }
+        else
+        {
+            if (period is null && from is null)
+            {
+                requiredFields.Add(new AiClarificationField(
+                    nameof(intent.From),
+                    "Başlangıç tarihi nedir?",
+                    []));
+            }
+
+            if (period is null && to is null)
+            {
+                requiredFields.Add(new AiClarificationField(
+                    nameof(intent.To),
+                    "Bitiş tarihi nedir?",
+                    []));
+            }
+        }
+
+        if (intent.Analysis == AiAnalysisType.TopProducts
+            && intent.Metric is null)
+        {
+            requiredFields.Add(new AiClarificationField(
+                nameof(intent.Metric),
+                "Ürünleri satış adedine göre mi, gelire göre mi sıralayalım?",
+                ["quantity", "revenue"]));
+        }
+
+        if (intent.Analysis == AiAnalysisType.SalesTrend
+            && intent.Granularity is null)
+        {
+            requiredFields.Add(new AiClarificationField(
+                nameof(intent.Granularity),
+                "Satış trendini günlük, haftalık mı, aylık mı gösterelim?",
+                ["daily", "weekly", "monthly"]));
+        }
+
+        return requiredFields;
+    }
+
+    private Task<bool> CategoryExistsAsync(
+        string categoryName,
+        CancellationToken cancellationToken) =>
+        dbContext.Categories
+            .AsNoTracking()
+            .AnyAsync(category => category.Name == categoryName, cancellationToken);
+
+    private IQueryable<Product> GetProductMatches(string productName)
+    {
+        var normalizedName = productName.ToLowerInvariant();
+        return dbContext.Products
+            .AsNoTracking()
+            .Where(product => product.Name.ToLower() == normalizedName);
     }
 
     private (DateTimeOffset FromUtc, DateTimeOffset ToUtc)? ResolveDateRange(

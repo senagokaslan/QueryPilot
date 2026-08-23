@@ -5,6 +5,7 @@ using QueryPilot.Api.Features.Ai;
 using QueryPilot.Api.Features.Analytics;
 using QueryPilot.Api.Features.Analytics.Dtos;
 using QueryPilot.Api.Features.Categories;
+using QueryPilot.Api.Features.Products;
 using Xunit;
 
 namespace QueryPilot.Api.Tests.Features.Ai;
@@ -101,6 +102,139 @@ public sealed class AiIntentValidatorTests
     }
 
     [Fact]
+    public async Task Best_products_question_requests_metric_and_date_without_querying_analytics()
+    {
+        await using var dbContext = CreateDbContext();
+        var analytics = new FailingAnalyticsService();
+        var intent = CreateIntent(
+            AiAnalysisType.TopProducts,
+            period: null,
+            metric: null);
+        var originalQuestion = "En iyi ürünler hangileri?";
+        var coordinator = new AiAnalyticsCoordinator(
+            new FakeAiService(intent, new AiResultExplanation("unused")),
+            CreateValidator(dbContext),
+            analytics);
+
+        var result = await coordinator.ExecuteAsync(originalQuestion);
+
+        Assert.Equal(AiAnalyticsExecutionStatus.NeedsClarification, result.Status);
+        Assert.Null(result.Data);
+        Assert.Null(result.Intent);
+        Assert.NotNull(result.Clarification);
+        Assert.Equal(originalQuestion, result.Clarification.OriginalQuestion);
+        Assert.Same(intent, result.Clarification.CurrentIntent);
+        Assert.Contains(
+            result.Clarification.RequiredFields,
+            field => field.Field == "dateRange");
+        var metricField = Assert.Single(
+            result.Clarification.RequiredFields,
+            field => field.Field == nameof(AiQuestionUnderstanding.Metric));
+        Assert.Equal(
+            "Ürünleri satış adedine göre mi, gelire göre mi sıralayalım?",
+            metricField.Question);
+        Assert.Equal(["quantity", "revenue"], metricField.AllowedValues);
+        Assert.Contains("yeniden gönderin", result.Clarification.RetryInstruction);
+        Assert.Equal(0, analytics.CallCount);
+    }
+
+    [Fact]
+    public async Task Unknown_analysis_returns_clarification_without_querying_analytics()
+    {
+        await using var dbContext = CreateDbContext();
+        var analytics = new FailingAnalyticsService();
+        var coordinator = new AiAnalyticsCoordinator(
+            new FakeAiService(
+                CreateIntent(AiAnalysisType.Unknown),
+                new AiResultExplanation("unused")),
+            CreateValidator(dbContext),
+            analytics);
+
+        var result = await coordinator.ExecuteAsync("Bana yardımcı ol");
+
+        Assert.Equal(AiAnalyticsExecutionStatus.NeedsClarification, result.Status);
+        Assert.Contains(
+            result.Clarification!.RequiredFields,
+            field => field.Field == nameof(AiQuestionUnderstanding.Analysis));
+        Assert.Equal(0, analytics.CallCount);
+    }
+
+    [Fact]
+    public async Task Ambiguous_product_name_is_not_selected_randomly()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Categories.Add(new Category
+        {
+            Id = 1,
+            Name = "Telefon",
+            IsActive = true,
+            CreatedAt = FixedUtcNow.UtcDateTime
+        });
+        dbContext.Products.AddRange(
+            CreateProduct(1, "Pro Telefon", "SKU-1"),
+            CreateProduct(2, "Pro Telefon", "SKU-2"));
+        await dbContext.SaveChangesAsync();
+        var analytics = new FailingAnalyticsService();
+        var coordinator = new AiAnalyticsCoordinator(
+            new FakeAiService(
+                CreateIntent(
+                    AiAnalysisType.SalesSummary,
+                    productName: "Pro Telefon"),
+                new AiResultExplanation("unused")),
+            CreateValidator(dbContext),
+            analytics);
+
+        var result = await coordinator.ExecuteAsync("Pro Telefon satışlarını göster");
+
+        Assert.Equal(AiAnalyticsExecutionStatus.NeedsClarification, result.Status);
+        var productField = Assert.Single(
+            result.Clarification!.RequiredFields,
+            field => field.Field == nameof(AiQuestionUnderstanding.ProductName));
+        Assert.Contains("birden fazla", productField.Question);
+        Assert.Equal(0, analytics.CallCount);
+    }
+
+    [Fact]
+    public async Task Non_exact_category_name_is_not_selected_randomly()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Categories.AddRange(
+            new Category
+            {
+                Id = 1,
+                Name = "Elektronik",
+                IsActive = true,
+                CreatedAt = FixedUtcNow.UtcDateTime
+            },
+            new Category
+            {
+                Id = 2,
+                Name = "Elektrik",
+                IsActive = true,
+                CreatedAt = FixedUtcNow.UtcDateTime
+            });
+        await dbContext.SaveChangesAsync();
+        var analytics = new FailingAnalyticsService();
+        var coordinator = new AiAnalyticsCoordinator(
+            new FakeAiService(
+                CreateIntent(
+                    AiAnalysisType.TopProducts,
+                    categoryName: "Elektro",
+                    metric: AiTopProductsMetric.Quantity),
+                new AiResultExplanation("unused")),
+            CreateValidator(dbContext),
+            analytics);
+
+        var result = await coordinator.ExecuteAsync("Elektro kategorisinin ürünleri");
+
+        Assert.Equal(AiAnalyticsExecutionStatus.NeedsClarification, result.Status);
+        Assert.Contains(
+            result.Clarification!.RequiredFields,
+            field => field.Field == nameof(AiQuestionUnderstanding.CategoryName));
+        Assert.Equal(0, analytics.CallCount);
+    }
+
+    [Fact]
     public async Task Malformed_provider_output_never_calls_analytics_service()
     {
         await using var dbContext = CreateDbContext();
@@ -146,7 +280,6 @@ public sealed class AiIntentValidatorTests
 
     public static IEnumerable<object[]> InvalidIntentCases()
     {
-        yield return [CreateIntent(AiAnalysisType.Unknown)];
         yield return [CreateIntent(
             AiAnalysisType.SalesSummary,
             period: null,
@@ -204,6 +337,18 @@ public sealed class AiIntentValidatorTests
             .Options;
         return new AppDbContext(options);
     }
+
+    private static Product CreateProduct(long id, string name, string sku) =>
+        new()
+        {
+            Id = id,
+            Name = name,
+            SKU = sku,
+            CategoryId = 1,
+            UnitPrice = 100,
+            IsActive = true,
+            CreatedAt = FixedUtcNow.UtcDateTime
+        };
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {

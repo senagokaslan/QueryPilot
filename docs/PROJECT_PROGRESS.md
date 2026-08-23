@@ -287,6 +287,27 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Malformed JSON, unknown analysis, invalid/çok geniş tarih, eksik veya geçersiz granularity/metric, sıfır/aşırı limit ve bulunmayan kategori test edildi. Invalid intent testlerinde analytics çağrı sayısı sıfır kaldı.
 - Semantic intent validation hataları güvenli ortak 400 validation response'una, malformed veya provider kaynaklı çıktılar prompt/key/raw provider içeriğini açığa çıkarmayan ortak 503 response'una bağlı; sınırsız AI tarih veya limit değeri service metoduna ulaşmıyor.
 
+### Adım 34 - Eksik bilgi ve clarification akışı
+
+- `IAiIntentValidator.EvaluateAsync`, geçersiz sağlanmış değerlerle eksik veya belirsiz bilgileri ayırıyor; eksik bilgi exception veya rastgele varsayım yerine typed clarification sonucu oluşturuyor.
+- Bütün analizler dönem ya da from/to tarih aralığı istiyor. Top-products metric, sales-trend granularity eksikse analytics sorgusundan önce kullanıcıya özel alan mesajı dönüyor.
+- “En iyi ürünler hangileri?” senaryosunda response aynı anda `dateRange` ve `Metric` alanlarını istiyor; metric mesajı satış adedi mi gelir mi seçileceğini ve izin verilen `quantity`/`revenue` değerlerini açıkça gösteriyor.
+- `AiAnalyticsExecutionResult`, `Completed` ve `NeedsClarification` durumlarını ayırıyor. Clarification response özgün soruyu, mevcut intenti, required fields listesini, izin verilen değerleri ve retry instruction metnini taşıyor.
+- Kategori için yalnız case-insensitive kesin eşleşme, ürün için yalnız case-insensitive tek kesin eşleşme kabul ediliyor. Yakın isimlerden rastgele kategori veya ürün seçilmiyor; sıfır ya da birden fazla ürün eşleşmesi clarification üretiyor.
+- Clarification üreten eksik tarih/metric, unknown analysis, belirsiz ürün ve kesin eşleşmeyen kategori testlerinde analytics service mock çağrı sayısı sıfır kaldı; PostgreSQL analytics sorgu yolu çalışmadı.
+- Rastgele tarih, kategori veya metric default'u atanmadı. Yalnız top-products limiti için önceden tanımlı güvenli backend varsayılanı korunuyor.
+- Clarification alanları kısa ve doğrudan `Question` metni taşıyor. Eksik bilgi akışında status hiçbir zaman `Completed`, data hiçbir zaman sahte analytics sonucu olmuyor; sistem bilmediği değeri uydurmadan `NeedsClarification` ve `null` data döndürüyor.
+
+### Adım 35 - Grounded AI analytics açıklaması
+
+- `AiAnalyticsCoordinator`, backend'in hesapladığı typed analytics DTO'sunu web JSON contractıyla serialize edip açıklama isteğinde AI adapter'ına gönderiyor; AI yalnız sonucu anlatıyor, hesaplamıyor.
+- Provider talimatı yalnız JSON'da verilen sayı ve bilgileri kullanmayı, yeni sayı/yüzde/tarih/ürün/müşteri/kategori eklememeyi ve artış, azalış veya öne çıkan noktayı en fazla üç kısa Türkçe cümlede anlatmayı zorunlu kılıyor.
+- Açıklama için 500 karakterlik backend sınırı uygulanıyor. Boş veya uzun açıklama güvenli biçimde reddediliyor.
+- `AiExplanationGuard`, açıklamadaki numeric değerleri JSON'un gerçek numeric tokenlarıyla karşılaştırıyor. DTO'da bulunmayan sayı içeren mock açıklama `RejectedUnsafe` oluyor ve metin response'a taşınmıyor.
+- Completed response ham `Data` ile bağımsız `Explanation` alanlarını birlikte taşıyor. Açıklama `Available`, provider hatasında `Unavailable`, güvenlik kontrolünde `RejectedUnsafe` durumunda olabiliyor; frontend yalnız `Available` metni isteğe bağlı gösterebilir.
+- Provider veya açıklama doğrulama hatası analytics sonucunu düşürmüyor ve başarılı numeric sonucu hata cevabına çevirmiyor. İstek cancellation'ı ise normal şekilde üst katmana taşınıyor.
+- Önceki 610.000, mevcut 540.000 fixture'ında kısa Türkçe azalış açıklaması; provider hatası; 999.000 uydurma sayı; uzunluk sınırı ve adapter'a gönderilen DTO/prompt test edildi.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -316,7 +337,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 34 kapsamında doğal dil analytics akışını HTTP endpointi ve ortak response contractıyla yayınlamak.
+Adım 36 kapsamında doğal dil analytics akışını HTTP endpointi ve ortak response contractıyla yayınlamak.
 
 ## Git geçmişi
 

@@ -6,6 +6,7 @@ public sealed record ValidatedAnalyticsIntent(
     AiAnalysisType Analysis,
     DateTimeOffset FromUtc,
     DateTimeOffset ToUtc,
+    long? ProductId,
     string? ProductName,
     long? CategoryId,
     string? CategoryName,

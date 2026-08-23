@@ -67,6 +67,10 @@ Soru anlama çağrısı yalnız structured JSON intent döndürür. Desteklenen 
 
 Typed intent backend'e iletilmeden önce doğrulanır. Bütün analizler geçerli ve en fazla beş yıllık bir UTC tarih aralığı gerektirir; desteklenen relative Türkçe dönemler backend `TimeProvider` değeriyle çözülür. Sales trend yalnız daily/weekly/monthly granularity, top-products yalnız quantity/revenue metric ve 1-50 limit kabul eder. Kategori adı verilirse gerçek database kaydı aranır. Doğrulama başarısız olursa analytics servisi çağrılmaz.
 
+Soru gerekli alanları içermiyorsa coordinator `NeedsClarification` sonucu döndürür. Bu response özgün soruyu, mevcut typed intenti, eksik veya belirsiz alanları, izin verilen değerleri ve yeniden gönderme talimatını içerir. Örneğin “En iyi ürünler hangileri?” sorusu için tarih aralığı ile quantity/revenue metriği istenir; rastgele tarih veya metric seçilmez. Ürün ve kategori adlarında yalnız kesin database eşleşmesi kabul edilir.
+
+Doğrulanmış analytics sonucu provider'a JSON DTO olarak yalnız kısa Türkçe açıklama üretmesi için gönderilir. AI'a DTO dışında sayı, yüzde, tarih, ürün, müşteri veya kategori eklememesi ve değerleri yeniden hesaplamaması açıkça bildirilir. Açıklama en fazla 500 karakterdir; kaynak JSON'da bulunmayan numeric değer içeren veya sınırı aşan metin `RejectedUnsafe` olarak işaretlenir ve frontend'e gösterilecek metin taşınmaz. Provider hatasında açıklama `Unavailable` olur. Her iki durumda da backend'in hesapladığı `data` aynen korunur; frontend `explanation.status` alanına göre açıklamayı isteğe bağlı gösterebilir.
+
 ## Yerel PostgreSQL
 
 Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.

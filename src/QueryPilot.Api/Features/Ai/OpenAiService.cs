@@ -42,9 +42,14 @@ public sealed class OpenAiService(
         the backend analytics service will query the database and calculate every result.
         """;
 
-    private const string ExplainInstructions =
-        "Explain the supplied backend analytics result clearly and concisely. " +
-        "Use only the supplied result; do not invent or recalculate values.";
+    private const string ExplainInstructions = """
+        QueryPilot backend analytics sonucunu kısa ve anlaşılır Türkçe ile açıkla.
+        Yalnızca verilen JSON DTO içindeki sayıları ve bilgileri kullan; hiçbir değeri
+        yeniden hesaplama. JSON'da bulunmayan sayı, yüzde, tarih, ürün, müşteri veya
+        kategori ekleme. Varsa artış, azalış, değişim olmaması ve öne çıkan noktayı
+        belirt. En fazla üç kısa cümle ve 500 karakter kullan. Yalnız açıklama metnini
+        döndür; JSON, Markdown veya ek başlık döndürme.
+        """;
 
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 

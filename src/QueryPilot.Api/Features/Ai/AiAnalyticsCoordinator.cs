@@ -1,4 +1,6 @@
 using QueryPilot.Api.Features.Analytics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace QueryPilot.Api.Features.Ai;
 
@@ -7,6 +9,9 @@ public sealed class AiAnalyticsCoordinator(
     IAiIntentValidator intentValidator,
     IAnalyticsService analyticsService) : IAiAnalyticsCoordinator
 {
+    private static readonly JsonSerializerOptions AnalyticsJsonOptions =
+        CreateAnalyticsJsonOptions();
+
     public async Task<AiAnalyticsExecutionResult> ExecuteAsync(
         string question,
         CancellationToken cancellationToken = default)
@@ -14,9 +19,19 @@ public sealed class AiAnalyticsCoordinator(
         var parsedIntent = await aiService.UnderstandQuestionAsync(
             question,
             cancellationToken);
-        var intent = await intentValidator.ValidateAsync(
+        var evaluation = await intentValidator.EvaluateAsync(
             parsedIntent,
             cancellationToken);
+
+        if (evaluation.NeedsClarification)
+        {
+            return AiAnalyticsExecutionResult.NeedsClarification(
+                question,
+                parsedIntent,
+                evaluation.RequiredFields);
+        }
+
+        var intent = evaluation.Intent!;
 
         object data = intent.Analysis switch
         {
@@ -53,6 +68,49 @@ public sealed class AiAnalyticsCoordinator(
                 "Validated AI intent contains an unsupported analysis type.")
         };
 
-        return new AiAnalyticsExecutionResult(intent, data);
+        var analyticsResultJson = JsonSerializer.Serialize(
+            data,
+            data.GetType(),
+            AnalyticsJsonOptions);
+        var explanation = await CreateExplanationAsync(
+            question,
+            analyticsResultJson,
+            cancellationToken);
+
+        return AiAnalyticsExecutionResult.Completed(intent, data, explanation);
+    }
+
+    private async Task<AiExplanationResponse> CreateExplanationAsync(
+        string question,
+        string analyticsResultJson,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await aiService.ExplainResultAsync(
+                question,
+                analyticsResultJson,
+                cancellationToken);
+
+            return AiExplanationGuard.Validate(result, analyticsResultJson);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return AiExplanationResponse.Unavailable();
+        }
+    }
+
+    private static JsonSerializerOptions CreateAnalyticsJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        return options;
     }
 }
