@@ -32,6 +32,7 @@ public sealed class GlobalExceptionHandler(
             ?? StatusCodes.Status500InternalServerError;
         await httpContext.Response.WriteAsJsonAsync(
             problemDetails,
+            problemDetails.GetType(),
             options: null,
             contentType: "application/problem+json",
             cancellationToken: cancellationToken);

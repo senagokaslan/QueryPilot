@@ -234,6 +234,21 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Product güncel fiyatı 999 iken iade tutarları OrderItem snapshot fiyatlarından gelen 40, 60 ve 50 olarak toplandı; güncel fiyat analytics tutarını etkilemedi.
 - Eski siparişe ait fakat seçilen dönemde gerçekleşen iade `ReturnDate` ile sayıldı; aynı dönemde satış olmadığından `NoSalesBaseline` doğrulandı. Boş dönem sıfır metrikler ve boş listeler döndürdü.
 
+### Adım 30 - Analytics API endpointleri ve sorgu incelemesi
+
+- `GET /api/analytics/summary`, `sales-trend`, `top-products`, `categories` ve `returns` endpointleri ortak `AnalyticsController` üzerinden yayınlandı.
+- Bütün endpointler nullable request DTO'larıyla zorunlu `From`/`To` alanlarını doğruluyor; trend granularity, top-products metric, limit ve isteğe bağlı category id değerleri model validation ile kontrol ediliyor.
+- Tarih aralığının UTC'ye çevrilmesi, başlangıç dahil/bitiş hariç kuralı, sıralama ve maksimum aralık doğrulamaları AnalyticsService'teki ortak kuralları kullanmaya devam ediyor.
+- AnalyticsController yalnızca `IAnalyticsService`, AnalyticsService yalnızca `AppDbContext` bağımlılığı alıyor; endpointlerin çalışması için AI servisi veya AI key gerekmiyor.
+- Tarih aralığı en fazla 5 yıl, top-products sonucu varsayılan 5 ve en fazla 50 kayıtla sınırlı; return analytics ürün listesi de 10 kayıtla sınırlandırılıyor.
+- Model validation ve servis validation hataları aynı `application/problem+json` contractıyla dönüyor. Exception handler runtime ProblemDetails tipini serialize ederek `HttpValidationProblemDetails.Errors` alanını koruyor.
+- Seed veritabanında beş endpoint Swagger UI üzerinden `2025-01-01T00:00:00Z`–`2027-01-01T00:00:00Z` aralığıyla çalıştırıldı ve tamamı 200 döndürdü.
+- Summary sonucu 1.291.549,48 revenue, 986 sipariş ve 7.513 ürün; trend Monthly için 24 nokta; top-products Revenue için 5 kayıt; categories için 10 kayıt; returns için 285 kayıt ve 487 adet döndürdü.
+- Trend response'unda `periodStart` değerlerinin `+00:00` UTC, label alanlarının okunabilir ve para/adet/value alanlarının JSON number olduğu Swagger response'unda doğrulandı.
+- EF Core komut kayıtlarında aggregate, grouping, ordering ve limit işlemlerinin PostgreSQL'e çevrildiği görüldü. Endpointler sabit sayıda sorgu çalıştırıyor; N+1 veya tüm entity/tabloyu belleğe alan sorgu bulunmuyor.
+- Gerçek seed verisiyle `EXPLAIN (ANALYZE, BUFFERS)` incelemesinde Orders tarih filtresi `IX_Orders_OrderDate` indeksini kullandı. Küçük OrderItems ve Returns tablolarında planner'ın seçtiği sequential scan'ler yaklaşık 0,09–1,03 ms aralığında tamamlandı.
+- `OrderDate`, `ReturnDate`, `OrderItemId`, `OrderId`, `ProductId` ve `CategoryId` foreign-key/tarih indeksleri mevcut. Bu veri ve planlar için yeni indeks eklenmedi; üretim ölçeğinde gerçek sorgu istatistikleriyle yeniden değerlendirme not edildi.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -263,7 +278,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 30 kapsamında beş Analytics endpointini yayınlamak ve sorguları kontrol etmek.
+Adım 31 kapsamında AI intent ve response contract temelini oluşturmak.
 
 ## Git geçmişi
 
