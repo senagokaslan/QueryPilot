@@ -104,6 +104,8 @@ Fixture; summary, günlük/haftalık/aylık trend, top-products quantity/revenue
 
 `WebApplicationFactory` contract testleri aynı disposable PostgreSQL database üzerinde Category, Product, Order, Return, Analytics ve AI endpointlerini gerçek HTTP pipeline'ından geçirir. AI çağrılarında deterministik `FakeAiService` kullanılır; model validation ve ortak 400/404/409/500/503 Problem Details response'ları HTTP seviyesinde doğrulanır.
 
+PostgreSQL kayıtları değiştiğinde Top Products, Sales Summary, Category Performance ve aynı doğal dil AI sorusunun nasıl güncellendiğini gösteren kısa before/after sunumu için [CV dynamic analytics demo senaryosuna](docs/cv-demo-dynamic-analytics.md) bakın.
+
 Gerçek OpenAI testi normal test paketinden ayrı ve varsayılan olarak skipped bir smoke testtir. Yalnız bilinçli olarak aşağıdaki üç environment variable sağlandığında ücretli provider çağrısı yapar:
 
 ```powershell

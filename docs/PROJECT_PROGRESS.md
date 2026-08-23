@@ -399,6 +399,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Canlı OpenAI smoke testi `Category=OpenAiSmoke` olarak ayrıldı. `QUERYPILOT_RUN_OPENAI_SMOKE=true`, `AI__ApiKey` ve `AI__Model` birlikte verilmedikçe skipped kalıyor ve normal unit/integration akışında ücretli çağrı yapılmıyor.
 - PostgreSQL integration paketi 11/11 geçti; bunun dört testi WebApplicationFactory HTTP contract kapsamıdır.
 
+### Adım 43 - Dinamik database değişikliği ve CV demo akışı
+
+- Disposable PostgreSQL fixture içinde Ocak 2042 için iki aktif ürün, iki kategori, aktif müşteri ve elle hesaplanabilir completed sipariş baseline'ı oluşturuldu.
+- Aynı tarih aralığında Top Products, Sales Summary ve Category Performance başlangıç response'ları HTTP endpointlerinden kaydedildi: lider 10 adet, hedef ürün 2 adet/400 revenue, toplam revenue 1.400.
+- Database'den aktif olduğu doğrulanan hedef ürüne iki completed sipariş eklendi; her biri 10 × 200 = 2.000, toplam yeni revenue 4.000.
+- Aynı sorguda hedef ürün 22 adet ve 4.400 revenue ile ilk sıraya çıktı. Summary revenue tam 4.000 arttı.
+- Hedef kategori revenue değeri 400'den 4.400'e; toplam içindeki payı `400/1.400` seviyesinden `4.400/5.400` seviyesine çıktı.
+- Aynı doğal dil sorusu mutation öncesi ve sonrası AI endpointine gönderildi. Fake explanation provider'a ulaşan analytics JSON'u ilk çağrıda 10 adetlik baseline lideri, ikinci çağrıda 22 adetlik güncel lideri içeriyor; açıklama eski sonucu cache'lemiyor.
+- 1.000 adetlik canceled sipariş ve olmayan ürünle yapılan invalid order isteği eklendikten sonra Top Products, Summary ve Category response'larının değişmediği doğrulandı.
+- CV sunumu için kısa before/after akışı `docs/cv-demo-dynamic-analytics.md` belgesine kaydedildi.
+- Test ürün/kategori adlarını GUID ile üretiyor; production kodunda lider ürün adı veya sırası bulunmuyor. Beklenen yeni quantity, revenue, summary ve kategori payı sabit sonuçtan değil eklenen completed order nesnelerinin hesaplanan `GrowthDelta` değerinden türetiliyor.
+- Yeni dinamik senaryoyla gerçek PostgreSQL integration paketi 12/12 başarılı oldu.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -428,7 +441,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 43 için sıradaki roadmap checklist'i bekleniyor.
+Adım 44 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 
