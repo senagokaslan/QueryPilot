@@ -85,6 +85,8 @@ Doğal dil analytics endpointi `POST /api/ai/query` adresindedir. `question` zor
 
 Başarılı response `status`, analiz türü ve kullanılan UTC parametreleri taşıyan `intent`, gerçek backend sonucu olan `data`, trend analizlerinde ayrıca `chartData` ve isteğe bağlı `explanation` alanlarını içerir. Clarification ve unsupported sonuçları aynı contract içinde kendi typed alanlarını kullanır. Provider tamamen kullanılamıyorsa endpoint ortak, detay sızdırmayan Problem Details 503 cevabı döndürür. Swagger XML açıklamaları request modeli, endpoint davranışı ve 200/400/503 response tiplerini gösterir.
 
+Intent extraction, validation, analytics routing ve açıklama adımlarının özeti için [AI query akışı](docs/ai-query-flow.md) belgesine bakın.
+
 ## Yerel PostgreSQL
 
 Development veritabanı PostgreSQL 18 üzerinde çalışır. Cluster verisi `%LOCALAPPDATA%\QueryPilot\PostgreSQL18\data` altında tutulur ve yalnız `127.0.0.1:5432` üzerinden erişilir. Host bağlantıları SCRAM-SHA-256 parola doğrulaması kullanır.

@@ -340,6 +340,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Boş/null/whitespace ve aşırı uzun soru validationı; geçerli trend sorusunda analiz/parametre/data/chart/explanation; belirsiz soru; unsupported soru; provider failure ve Swagger metadata senaryoları test edildi.
 - Endpoint controller testi mevcut coordinator sözleşmesiyle birlikte çalışıyor; coordinator routing testleri doğru analytics metodunu, explanation testleri gerçek DTO'nun AI'a gönderildiğini doğrulamaya devam ediyor.
 
+### Adım 39 - Doğal dil BI uçtan uca doğrulaması
+
+- “Bu ay satışlarımız nasıl?”, “Son 3 ayda en çok satan 5 ürün ne?”, önceki dönem kategori performansı ve son 30 gün iade analizi soruları deterministik AI fake üzerinden tam coordinator akışına gönderildi.
+- Her soru için extracted analysis, kesin UTC from/to aralığı, top-products quantity metric ve limit 5 parametreleri validated intent üzerinde doğrulandı.
+- Recording analytics decorator, her doğal dil isteğinde yalnız beklenen analytics metodunun bir kez çağrıldığını; direct karşılaştırma çağrısında da aynı metodun ve parametrelerin kullanıldığını gösterdi.
+- AI query structured data'sı aynı izole fixture üzerinde `AnalyticsController` direct sonucu ile production JSON contractında birebir karşılaştırıldı.
+- Bilinen fixture ayrıca satış revenue/order/units, top product quantity, kategori current/previous revenue ve iade count/quantity/amount/rate değerlerini açık sayılarla doğruluyor.
+- Açıklama fake'i yalnız backend JSON'undaki numeric değeri kullanıyor; açıklama hem coordinator grounding sonucunda hem direct analytics JSON'una karşı yeniden `Available` olarak doğrulandı.
+- “En iyi ürünler hangileri?” sorusu tarih ve metric clarification alanlarını döndürdü; recording analytics çağrı listesi boş kaldı.
+- Hızlı ve taşınabilir doğrulama benzersiz EF InMemory database'de çalışıyor. Ayrıca opt-in PostgreSQL testi aynı dört senaryoyu 2099 tarihli benzersiz fixture ile gerçek Npgsql sorgularında çalıştırıyor, AI ve direct endpoint JSON sonuçlarını birebir karşılaştırıyor ve bütün eklemeleri transaction rollback ile geri alıyor.
+- PostgreSQL entegrasyon testi rollback sonrasında benzersiz kategori prefix'inin kalmadığını ayrı context ile doğruluyor; production database kullanılmıyor ve kalıcı test kaydı bırakılmıyor. Mevcut direct-controller resilience testi AI provider olmadan analytics'in çalıştığını doğrulamaya devam ediyor.
+- Basit akış diyagramı `docs/ai-query-flow.md` belgesine eklendi; request validation, provider failure, unsupported, clarification, typed routing, structured data ve optional açıklama dallarını gösteriyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -369,7 +382,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 39 için sıradaki roadmap checklist'i bekleniyor.
+Adım 40 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 
