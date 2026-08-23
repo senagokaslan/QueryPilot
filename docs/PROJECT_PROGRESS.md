@@ -155,6 +155,51 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - SQL doğrulamasında test satırlarının toplam iade miktarları 5/5, 2/5 ve 3/5 bulundu; hiçbiri satın alınan miktarı aşmadı.
 - Aynı beş adetlik satıra eşzamanlı gönderilen iki adet 3'lük iade isteğinden biri 201, diğeri 409 aldı; veritabanında yalnızca 3 adet iade oluştu.
 
+### Adım 23 - Analytics tarih ve response temeli
+
+- `IAnalyticsService` ve AI katmanına bağımlılığı olmayan `AnalyticsService` oluşturulup dependency injection'a kaydedildi.
+- Analytics tarih aralığı UTC'ye normalize edildi; başlangıç dahil, bitiş hariç yarı-açık aralık ortak `AnalyticsDateRange` modeliyle tanımlandı.
+- Başlangıcı bitişten önce olmayan aralıklar ve beş yılı aşan sorgular ortak validation hatasıyla reddediliyor.
+- Günlük, haftalık ve aylık seçenekler `AnalyticsGranularity` enum'unda tanımlandı ve JSON'da anlaşılır string değer olarak sunuluyor.
+- Grafikler için UTC `periodStart`, okunabilir `label` ve `decimal value` alanlarını taşıyan ortak `AnalyticsChartPoint` modeli eklendi.
+- Verisiz dönem politikası para ve yüzde için numeric `0`, adet için numeric `0`, koleksiyonlar için boş liste olarak `AnalyticsResponseDefaults` ile tanımlandı.
+- Davranış kontrolünde farklı offsetli tarihler UTC'ye çevrildi; aralığın ilk anı dahil, son anı hariç tutuldu ve chart `value` alanı JSON'da string yerine sayı döndü.
+- Analytics kodunda `DateTime.Now`/`DateTimeOffset.Now`, ay adına göre grouping veya AI servis bağımlılığı bulunmadığı statik taramayla doğrulandı; sonraki analizler ortak UTC tarih ve chart contractını kullanacak.
+
+### Adım 24 - Sales Summary analizi
+
+- Satış analizine yalnızca `Completed` siparişlerin dahil edilmesi `AnalyticsService.IncludedOrderStatus` ile açıkça tanımlandı; `Pending` ve `Cancelled` siparişler hariç tutuluyor.
+- Seçilen UTC yarı-açık tarih aralığı için toplam gelir PostgreSQL'de `SUM`, sipariş sayısı `COUNT` ve satılan adet `OrderItem.Quantity` üzerinden `SUM` ile hesaplanıyor.
+- Ortalama sipariş tutarı toplam gelirin sipariş sayısına bölünmesiyle hesaplanıyor; siparişsiz aralık sorgusu erken boş response döndürdüğünden sıfıra bölme oluşmuyor.
+- `SalesSummaryResponse`, UTC aralıkla birlikte numeric `totalRevenue`, `orderCount`, `unitsSold` ve `averageOrderValue` alanlarını döndürüyor.
+- Sorgular `AsNoTracking`, filtre, grouping ve aggregate projection kullanıyor; entity veya ilişkili koleksiyonlar belleğe alınmıyor.
+- `querypilot_dev` üzerinde rollback edilen fixture ile elle beklenen 65 gelir, 2 sipariş, 5 adet ve 32,5 ortalama değerlerinin servis sonucuyla birebir eşleştiği doğrulandı.
+- Boş tarih aralığı ve yalnız `Cancelled` sipariş içeren aralık bütün metriklerde numeric sıfır döndürdü; test verisi transaction sonunda rollback edildi.
+
+### Adım 25 - Sales Trend analizi
+
+- `GetSalesTrendAsync`, tanımsız granularity değerlerini ortak validation hatasıyla reddediyor; `Daily`, `Weekly` ve `Monthly` destekleniyor.
+- Tamamlanmış siparişler PostgreSQL'de UTC gün başlangıcına göre aggregate ediliyor; gelir, sipariş sayısı ve `OrderItem.Quantity` toplamı her bucket için hesaplanıyor.
+- Haftalar Pazartesi 00:00 UTC'de başlıyor; aylık bucket anahtarı yıl ve ayı birlikte temsil eden ayın ilk UTC anıdır, ay adına göre database grouping yapılmıyor.
+- Sonuçlar en eski bucket'tan en yeniye üretiliyor ve satış olmayan ara gün, hafta veya aylar numeric sıfır noktalarla dolduruluyor.
+- `SalesTrendResponse`, revenue, order count ve units sold için ortak `periodStart`, `label`, numeric `value` chart serilerini döndürüyor.
+- PostgreSQL rollback fixture testinde 28 ve 29 Şubat 2024 ayrı günler olarak, 1 Mart satışsız sıfır nokta olarak ve iki haftalık serinin başlangıçları Pazartesi olarak doğrulandı.
+- Aralık 2023 ve Ocak 2024 ayrı aylık bucket'larda doğrulandı; böylece yıl geçişi ve yıl+ay gruplama politikası test edildi.
+- EF komut kaydında aggregate sorguların PostgreSQL'e gönderildiği ve gün gruplamasının `date_trunc('day', ...)` olarak çevrildiği görüldü; bireysel sipariş entityleri belleğe alınmadı.
+
+### Adım 26 - Top Products analizi
+
+- `GetTopProductsAsync`, seçilen UTC aralıktaki yalnız `Completed` sipariş satırlarını ProductId bazında grupluyor.
+- Satılan adet `OrderItem.Quantity`, gelir ise finansal snapshot olan `OrderItem.LineTotal` üzerinden PostgreSQL `SUM` ile hesaplanıyor.
+- Kullanıcı `Quantity` veya `Revenue` metriğini seçebiliyor; tanımsız metric validation hatasıyla reddediliyor.
+- Sonuç limiti varsayılan 5 ve maksimum 50 olarak belirlendi; sıfır, negatif veya maksimumu aşan limitler reddediliyor.
+- Pozitif `CategoryId` ile opsiyonel kategori filtresi uygulanıyor; geçersiz kategori kimliği formatı validation hatası döndürüyor.
+- Adet sıralamasında eşitlik revenue, gelir sıralamasında eşitlik quantity ile bozuluyor; sonraki kararlı kriter artan ProductId.
+- `TopProductResponse`; rank, product id, name, SKU, quantity ve revenue alanlarını numeric finansal/adet değerleriyle döndürüyor.
+- Rollback fixture testinde A ürünü adette, B ürünü gelirde lider oldu; eşit B/C sonuçları ProductId ile kararlı sıralandı ve kategori filtresi diğer kategoriyi dışladı.
+- B ürününe yeni büyük sipariş eklendikten sonra adet liderliği A'dan B'ye dinamik olarak geçti; miktar 15 ve gelir 450 olarak yeniden hesaplandı.
+- EF komut kaydında gruplama, toplam, sıralama ve limitin PostgreSQL'e çevrildiği doğrulandı; test transaction'ı rollback edildi.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -184,7 +229,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Sipariş oluşturma, listeleme ve detay işlemlerini service ve controller katmanlarında uygulamak.
+Adım 27 kapsamında Category Performance analizini oluşturmak.
 
 ## Git geçmişi
 

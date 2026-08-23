@@ -8,6 +8,7 @@ using QueryPilot.Api.Common.Responses;
 using QueryPilot.Api.Configuration;
 using QueryPilot.Api.Data;
 using QueryPilot.Api.Data.Seed;
+using QueryPilot.Api.Features.Analytics;
 using QueryPilot.Api.Features.Categories;
 using QueryPilot.Api.Features.Customers;
 using QueryPilot.Api.Features.Orders;
@@ -57,6 +58,7 @@ builder.Services
         "Pagination:DefaultPageSize cannot be greater than Pagination:MaxPageSize.")
     .ValidateOnStart();
 builder.Services.AddScoped<DemoDataSeeder>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
