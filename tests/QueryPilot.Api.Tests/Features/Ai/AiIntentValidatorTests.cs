@@ -82,6 +82,29 @@ public sealed class AiIntentValidatorTests
     }
 
     [Theory]
+    [InlineData("bugün", "2026-08-23T00:00:00Z", "2026-08-23T12:00:00Z")]
+    [InlineData("son 2 hafta", "2026-08-09T12:00:00Z", "2026-08-23T12:00:00Z")]
+    [InlineData("geçen hafta", "2026-08-10T00:00:00Z", "2026-08-17T00:00:00Z")]
+    [InlineData("geçen ay", "2026-07-01T00:00:00Z", "2026-08-01T00:00:00Z")]
+    [InlineData("bu yıl", "2026-01-01T00:00:00Z", "2026-08-23T12:00:00Z")]
+    public async Task Relative_periods_are_resolved_to_deterministic_UTC_ranges(
+        string period,
+        string expectedFrom,
+        string expectedTo)
+    {
+        await using var dbContext = CreateDbContext();
+        var validator = CreateValidator(dbContext);
+        var intent = CreateIntent(AiAnalysisType.SalesSummary, period: period);
+
+        var result = await validator.ValidateAsync(intent);
+
+        Assert.Equal(DateTimeOffset.Parse(expectedFrom), result.FromUtc);
+        Assert.Equal(DateTimeOffset.Parse(expectedTo), result.ToUtc);
+        Assert.Equal(TimeSpan.Zero, result.FromUtc.Offset);
+        Assert.Equal(TimeSpan.Zero, result.ToUtc.Offset);
+    }
+
+    [Theory]
     [MemberData(nameof(InvalidIntentCases))]
     public async Task Invalid_intent_never_calls_analytics_service(
         AiQuestionUnderstanding intent)
