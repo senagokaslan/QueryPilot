@@ -329,6 +329,17 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Her desteklenen analiz için recording analytics fake ile çağrı sayısının tam bir, çağrılan metodun doğru ve parametrelerin beklenen değerlerde olduğu doğrulandı.
 - Routing yalnız typed enum ve açık method çağrılarından oluşuyor. Reflection, dinamik method adı, raw SQL veya AI tarafından verilen komut çalıştıran bir yol bulunmuyor.
 
+### Adım 38 - AI query HTTP endpointi
+
+- `POST /api/ai/query`, typed `AiQueryRequest` üzerinden doğal dil BI sorusunu `IAiAnalyticsCoordinator` akışına iletiyor.
+- `Question` zorunlu, whitespace-only değeri reddedilen ve en fazla 2000 karakter kabul eden model-level validation kullanıyor; controller normalize edilmiş soruyu coordinator'a gönderiyor.
+- Completed response okunabilir analiz türü, doğrulanmış UTC intent parametreleri, gerçek structured `Data`, trend analizleri için ayrı typed `ChartData`, optional AI `Explanation` ve gerektiğinde güvenli `Warning` alanlarını taşıyor.
+- NeedsClarification response eksik alanları ve kısa soruları; Unsupported response desteklenen analizleri ve örnek soruları aynı unified contract içinde döndürüyor.
+- Provider intent extraction tamamen başarısızsa exception ortak güvenli 503 Problem Details handler'ına bırakılıyor; açıklama başarısızsa mevcut numeric data korunmaya devam ediyor.
+- Endpoint XML documentation ve Swagger `ProducesResponseType` metadata'sıyla 200, validation 400 ve provider 503 response tiplerini açıkça yayınlıyor.
+- Boş/null/whitespace ve aşırı uzun soru validationı; geçerli trend sorusunda analiz/parametre/data/chart/explanation; belirsiz soru; unsupported soru; provider failure ve Swagger metadata senaryoları test edildi.
+- Endpoint controller testi mevcut coordinator sözleşmesiyle birlikte çalışıyor; coordinator routing testleri doğru analytics metodunu, explanation testleri gerçek DTO'nun AI'a gönderildiğini doğrulamaya devam ediyor.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -358,7 +369,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 38 kapsamında doğal dil analytics akışını HTTP endpointi ve ortak response contractıyla yayınlamak.
+Adım 39 için sıradaki roadmap checklist'i bekleniyor.
 
 ## Git geçmişi
 

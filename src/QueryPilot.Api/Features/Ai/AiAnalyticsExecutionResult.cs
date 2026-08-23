@@ -1,10 +1,17 @@
+using QueryPilot.Api.Features.Analytics.Dtos;
+
 namespace QueryPilot.Api.Features.Ai;
 
+/// <summary>
+/// Unified AI query result. Data always contains the structured backend result for a
+/// completed query; Explanation is optional and never replaces Data.
+/// </summary>
 public sealed record AiAnalyticsExecutionResult(
     AiAnalyticsExecutionStatus Status,
     string Message,
     ValidatedAnalyticsIntent? Intent,
     object? Data,
+    AiChartDataResponse? ChartData,
     string? Warning,
     AiExplanationResponse? Explanation,
     AiClarificationResponse? Clarification,
@@ -19,6 +26,7 @@ public sealed record AiAnalyticsExecutionResult(
             "Analytics result is ready.",
             intent,
             data,
+            CreateChartData(data),
             CreateExplanationWarning(explanation.Status),
             explanation,
             Clarification: null,
@@ -33,6 +41,7 @@ public sealed record AiAnalyticsExecutionResult(
             "Analizi çalıştırabilmem için eksik veya belirsiz bilgileri tamamlayın.",
             Intent: null,
             Data: null,
+            ChartData: null,
             Warning: null,
             Explanation: null,
             new AiClarificationResponse(
@@ -48,10 +57,19 @@ public sealed record AiAnalyticsExecutionResult(
             "Bu soru QueryPilot'ın desteklediği BI analizlerinin dışında.",
             Intent: null,
             Data: null,
+            ChartData: null,
             Warning: null,
             Explanation: null,
             Clarification: null,
             AiUnsupportedResponse.Create());
+
+    private static AiChartDataResponse? CreateChartData(object data) =>
+        data is SalesTrendResponse trend
+            ? new AiChartDataResponse(
+                trend.Revenue,
+                trend.OrderCount,
+                trend.UnitsSold)
+            : null;
 
     private static string? CreateExplanationWarning(AiExplanationStatus status) =>
         status switch
