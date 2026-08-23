@@ -9,6 +9,9 @@ namespace QueryPilot.Api.Features.Analytics;
 
 public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
 {
+    public const string PreviousPeriodPolicy =
+        "The previous period is adjacent to the current period and uses the exact same elapsed UTC duration; calendar month boundaries are not shifted independently.";
+
     public const int MaximumRangeInYears = 5;
 
     public const OrderStatus IncludedOrderStatus = OrderStatus.Completed;
@@ -16,6 +19,8 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
     public const int DefaultTopProductsLimit = 5;
 
     public const int MaximumTopProductsLimit = 50;
+
+    public const int PercentageDecimalPlaces = 2;
 
     public AnalyticsDateRange CreateDateRange(
         DateTimeOffset from,
@@ -52,49 +57,25 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
         CancellationToken cancellationToken = default)
     {
         var range = CreateDateRange(from, to);
-        var fromUtc = range.FromUtc.UtcDateTime;
-        var toUtc = range.ToUtc.UtcDateTime;
-        var completedOrders = dbContext.Orders
-            .AsNoTracking()
-            .Where(order =>
-                order.Status == IncludedOrderStatus
-                && order.OrderDate >= fromUtc
-                && order.OrderDate < toUtc);
-
-        var orderMetrics = await completedOrders
-            .GroupBy(_ => 1)
-            .Select(group => new
-            {
-                TotalRevenue = group.Sum(order => order.TotalAmount),
-                OrderCount = group.Count()
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (orderMetrics is null)
-        {
-            return SalesSummaryResponse.Empty(range);
-        }
-
-        var unitsSold = await dbContext.OrderItems
-            .AsNoTracking()
-            .Where(item =>
-                item.Order.Status == IncludedOrderStatus
-                && item.Order.OrderDate >= fromUtc
-                && item.Order.OrderDate < toUtc)
-            .SumAsync(
-                item => (long?)item.Quantity,
-                cancellationToken)
-            ?? AnalyticsResponseDefaults.Quantity;
-        var averageOrderValue =
-            orderMetrics.TotalRevenue / orderMetrics.OrderCount;
+        var previousRange = CreatePreviousRange(range);
+        var currentMetrics = await GetSalesSummaryMetricsAsync(
+            range,
+            cancellationToken);
+        var previousMetrics = await GetSalesSummaryMetricsAsync(
+            previousRange,
+            cancellationToken);
 
         return new SalesSummaryResponse(
             range.FromUtc,
             range.ToUtc,
-            orderMetrics.TotalRevenue,
-            orderMetrics.OrderCount,
-            unitsSold,
-            averageOrderValue);
+            currentMetrics.TotalRevenue,
+            currentMetrics.OrderCount,
+            currentMetrics.UnitsSold,
+            currentMetrics.AverageOrderValue,
+            CreateComparisonPeriod(range, previousRange),
+            CreateMetricComparison(
+                currentMetrics.TotalRevenue,
+                previousMetrics.TotalRevenue));
     }
 
     public async Task<SalesTrendResponse> GetSalesTrendAsync(
@@ -257,9 +238,113 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
         CancellationToken cancellationToken = default)
     {
         var range = CreateDateRange(from, to);
+        var previousRange = CreatePreviousRange(range);
+        var currentMetrics = await GetCategoryMetricsAsync(
+            range,
+            cancellationToken);
+        var previousMetrics = await GetCategoryMetricsAsync(
+            previousRange,
+            cancellationToken);
+        var currentByCategory = currentMetrics.ToDictionary(
+            category => category.CategoryId);
+        var previousByCategory = previousMetrics.ToDictionary(
+            category => category.CategoryId);
+        var totalRevenue = currentMetrics.Sum(category => category.Revenue);
+        var previousTotalRevenue = previousMetrics.Sum(category => category.Revenue);
+        var categories = currentMetrics
+            .Concat(previousMetrics)
+            .GroupBy(category => category.CategoryId)
+            .Select(group => group.First())
+            .Select(category =>
+            {
+                var current = currentByCategory.GetValueOrDefault(category.CategoryId);
+                var previous = previousByCategory.GetValueOrDefault(category.CategoryId);
+
+                return new
+                {
+                    category.CategoryId,
+                    category.CategoryName,
+                    Revenue = current?.Revenue ?? AnalyticsResponseDefaults.Money,
+                    UnitsSold = current?.UnitsSold ?? AnalyticsResponseDefaults.Quantity,
+                    PreviousRevenue = previous?.Revenue ?? AnalyticsResponseDefaults.Money
+                };
+            })
+            .OrderByDescending(category => category.Revenue)
+            .ThenBy(category => category.CategoryId)
+            .Select((category, index) => new CategoryPerformanceItemResponse(
+                index + 1,
+                category.CategoryId,
+                category.CategoryName,
+                category.Revenue,
+                category.UnitsSold,
+                totalRevenue == AnalyticsResponseDefaults.Money
+                    ? AnalyticsResponseDefaults.Percentage
+                    : category.Revenue / totalRevenue * 100m,
+                CreateMetricComparison(
+                    category.Revenue,
+                    category.PreviousRevenue)))
+            .ToArray();
+
+        return new CategoryPerformanceResponse(
+            range.FromUtc,
+            range.ToUtc,
+            totalRevenue,
+            categories,
+            CreateComparisonPeriod(range, previousRange),
+            CreateMetricComparison(totalRevenue, previousTotalRevenue));
+    }
+
+    private async Task<SalesSummaryMetrics> GetSalesSummaryMetricsAsync(
+        AnalyticsDateRange range,
+        CancellationToken cancellationToken)
+    {
         var fromUtc = range.FromUtc.UtcDateTime;
         var toUtc = range.ToUtc.UtcDateTime;
-        var categoryMetrics = await dbContext.OrderItems
+        var completedOrders = dbContext.Orders
+            .AsNoTracking()
+            .Where(order =>
+                order.Status == IncludedOrderStatus
+                && order.OrderDate >= fromUtc
+                && order.OrderDate < toUtc);
+        var orderMetrics = await completedOrders
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                TotalRevenue = group.Sum(order => order.TotalAmount),
+                OrderCount = group.Count()
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (orderMetrics is null)
+        {
+            return SalesSummaryMetrics.Empty;
+        }
+
+        var unitsSold = await dbContext.OrderItems
+            .AsNoTracking()
+            .Where(item =>
+                item.Order.Status == IncludedOrderStatus
+                && item.Order.OrderDate >= fromUtc
+                && item.Order.OrderDate < toUtc)
+            .SumAsync(
+                item => (long?)item.Quantity,
+                cancellationToken)
+            ?? AnalyticsResponseDefaults.Quantity;
+
+        return new SalesSummaryMetrics(
+            orderMetrics.TotalRevenue,
+            orderMetrics.OrderCount,
+            unitsSold,
+            orderMetrics.TotalRevenue / orderMetrics.OrderCount);
+    }
+
+    private async Task<IReadOnlyList<CategorySalesMetric>> GetCategoryMetricsAsync(
+        AnalyticsDateRange range,
+        CancellationToken cancellationToken)
+    {
+        var fromUtc = range.FromUtc.UtcDateTime;
+        var toUtc = range.ToUtc.UtcDateTime;
+        var metrics = await dbContext.OrderItems
             .AsNoTracking()
             .Where(item =>
                 item.Order.Status == IncludedOrderStatus
@@ -277,27 +362,75 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
                 Revenue = group.Sum(item => item.LineTotal),
                 UnitsSold = group.Sum(item => (long)item.Quantity)
             })
-            .OrderByDescending(category => category.Revenue)
-            .ThenBy(category => category.CategoryId)
             .ToListAsync(cancellationToken);
-        var totalRevenue = categoryMetrics.Sum(category => category.Revenue);
-        var categories = categoryMetrics
-            .Select((category, index) => new CategoryPerformanceItemResponse(
-                index + 1,
-                category.CategoryId,
-                category.CategoryName,
-                category.Revenue,
-                category.UnitsSold,
-                totalRevenue == AnalyticsResponseDefaults.Money
-                    ? AnalyticsResponseDefaults.Percentage
-                    : category.Revenue / totalRevenue * 100m))
-            .ToArray();
 
-        return new CategoryPerformanceResponse(
-            range.FromUtc,
-            range.ToUtc,
-            totalRevenue,
-            categories);
+        return metrics.Select(metric => new CategorySalesMetric(
+            metric.CategoryId,
+            metric.CategoryName,
+            metric.Revenue,
+            metric.UnitsSold)).ToArray();
+    }
+
+    private static AnalyticsDateRange CreatePreviousRange(
+        AnalyticsDateRange currentRange)
+    {
+        try
+        {
+            return new AnalyticsDateRange(
+                currentRange.FromUtc - currentRange.Duration,
+                currentRange.FromUtc);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new RequestValidationException(
+                new Dictionary<string, string[]>
+                {
+                    ["from"] =
+                    ["The selected range does not leave room for an equally long previous period."]
+                });
+        }
+    }
+
+    private static ComparisonPeriodResponse CreateComparisonPeriod(
+        AnalyticsDateRange currentRange,
+        AnalyticsDateRange previousRange) =>
+        new(
+            currentRange.FromUtc,
+            currentRange.ToUtc,
+            previousRange.FromUtc,
+            previousRange.ToUtc,
+            currentRange.Duration.Ticks,
+            PreviousPeriodPolicy);
+
+    private static MetricComparisonResponse CreateMetricComparison(
+        decimal currentValue,
+        decimal previousValue)
+    {
+        if (previousValue == AnalyticsResponseDefaults.Money)
+        {
+            return new MetricComparisonResponse(
+                currentValue,
+                previousValue,
+                null,
+                ComparisonStatus.NoBaseline);
+        }
+
+        var percentageChange = Math.Round(
+            (currentValue - previousValue) / previousValue * 100m,
+            PercentageDecimalPlaces,
+            MidpointRounding.AwayFromZero);
+        var status = currentValue.CompareTo(previousValue) switch
+        {
+            > 0 => ComparisonStatus.Increase,
+            < 0 => ComparisonStatus.Decrease,
+            _ => ComparisonStatus.NoChange
+        };
+
+        return new MetricComparisonResponse(
+            currentValue,
+            previousValue,
+            percentageChange,
+            status);
     }
 
     private static void ValidateGranularity(AnalyticsGranularity granularity)
@@ -442,5 +575,24 @@ public sealed class AnalyticsService(AppDbContext dbContext) : IAnalyticsService
     private sealed record PeriodSalesMetric(
         decimal Revenue,
         int OrderCount,
+        long UnitsSold);
+
+    private sealed record SalesSummaryMetrics(
+        decimal TotalRevenue,
+        int OrderCount,
+        long UnitsSold,
+        decimal AverageOrderValue)
+    {
+        public static SalesSummaryMetrics Empty { get; } = new(
+            AnalyticsResponseDefaults.Money,
+            AnalyticsResponseDefaults.Quantity,
+            AnalyticsResponseDefaults.Quantity,
+            AnalyticsResponseDefaults.Money);
+    }
+
+    private sealed record CategorySalesMetric(
+        long CategoryId,
+        string CategoryName,
+        decimal Revenue,
         long UnitsSold);
 }

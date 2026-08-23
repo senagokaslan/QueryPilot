@@ -4,4 +4,6 @@ public sealed record CategoryPerformanceResponse(
     DateTimeOffset FromUtc,
     DateTimeOffset ToUtc,
     decimal TotalRevenue,
-    IReadOnlyList<CategoryPerformanceItemResponse> Items);
+    IReadOnlyList<CategoryPerformanceItemResponse> Items,
+    ComparisonPeriodResponse ComparisonPeriod,
+    MetricComparisonResponse TotalRevenueComparison);

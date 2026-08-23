@@ -6,4 +6,5 @@ public sealed record CategoryPerformanceItemResponse(
     string Name,
     decimal Revenue,
     long UnitsSold,
-    decimal RevenueSharePercentage);
+    decimal RevenueSharePercentage,
+    MetricComparisonResponse RevenueComparison);

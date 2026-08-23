@@ -6,14 +6,6 @@ public sealed record SalesSummaryResponse(
     decimal TotalRevenue,
     int OrderCount,
     long UnitsSold,
-    decimal AverageOrderValue)
-{
-    public static SalesSummaryResponse Empty(AnalyticsDateRange range) =>
-        new(
-            range.FromUtc,
-            range.ToUtc,
-            AnalyticsResponseDefaults.Money,
-            AnalyticsResponseDefaults.Quantity,
-            AnalyticsResponseDefaults.Quantity,
-            AnalyticsResponseDefaults.Money);
-}
+    decimal AverageOrderValue,
+    ComparisonPeriodResponse ComparisonPeriod,
+    MetricComparisonResponse RevenueComparison);

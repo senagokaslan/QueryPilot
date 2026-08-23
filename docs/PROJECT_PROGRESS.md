@@ -211,6 +211,17 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Rollback fixture testinde pasif kategorinin 300 geliri ve 3 adedi, aktif kategorinin 100 geliri ve 10 adedi hesaplandı; kategori gelirlerinin toplamı 400 genel gelire, payların toplamı yüzde 100'e eşit bulundu.
 - İptal edilmiş ve bitiş anındaki siparişler sonuca girmedi; EF komut kaydında Product/Category join, grouping, sum ve ordering PostgreSQL'e çevrildi, `IsActive` filtresi bulunmadı.
 
+### Adım 28 - Önceki dönem karşılaştırması
+
+- Mevcut UTC aralığın elapsed tick uzunluğu hesaplanıyor; önceki aralık aynı uzunlukta ve mevcut başlangıca bitişik `[currentFrom - duration, currentFrom)` olarak oluşturuluyor.
+- Sales Summary mevcut ve önceki dönem revenue değerlerini aynı `Completed` sipariş, UTC ve yarı-açık tarih kurallarıyla ayrı ayrı hesaplayıp ortak comparison response'u döndürüyor.
+- Yüzde değişimi `(current - previous) / previous * 100` formülüyle backend'de hesaplanıyor ve iki ondalığa `AwayFromZero` kuralıyla yuvarlanıyor.
+- Önceki değer sıfırsa yüzde `null` ve durum `NoBaseline`; diğer sonuçlar `Increase`, `Decrease` veya `NoChange` olarak string enum ile işaretleniyor.
+- Category Performance aynı `MetricComparisonResponse` ve `ComparisonPeriodResponse` modellerini hem genel gelir hem kategori geliri için yeniden kullanıyor; yalnız önceki dönemde bulunan kategoriler de sıfır mevcut değerle korunuyor.
+- Response, mevcut ve önceki UTC sınırlarını, exact duration tick değerini ve takvim ayı kaydırmak yerine aynı elapsed UTC süresinin kullanıldığını açıklayan policy metadata'sını döndürüyor.
+- Farklı ay uzunluğu testinde 1 Mart-1 Nisan aralığının 31 günlük önceki dönemi 29 Ocak-1 Mart olarak oluştu; aralıklar bitişik ve eşit tick uzunluğunda bulundu.
+- Rollback fixture testinde 500.000 mevcut ve 600.000 önceki revenue sonucu `-16,67` ve `Decrease` döndü; ayrı aralıklarda `Increase`, `NoChange` ve `NoBaseline` durumları doğrulandı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -240,7 +251,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 28 kapsamında mevcut ve önceki dönem karşılaştırmasını eklemek.
+Adım 29 kapsamında Return Analytics analizini oluşturmak.
 
 ## Git geçmişi
 
