@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using QueryPilot.Api.Common.ErrorHandling;
 using QueryPilot.Api.Common.Pagination;
@@ -101,11 +103,18 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<ProblemDetailsFactory, QueryPilotProblemDetailsFactory>();
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy =
+            JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DictionaryKeyPolicy =
+            JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(
-            new JsonStringEnumConverter()))
+            new JsonStringEnumConverter());
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>
@@ -178,6 +187,27 @@ if (app.Environment.IsDevelopment()
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var httpContext = statusCodeContext.HttpContext;
+    var statusCode = httpContext.Response.StatusCode;
+    var problemDetails = new ProblemDetails
+    {
+        Status = statusCode,
+        Title = ProblemDetailsTypes.GetTitle(statusCode),
+        Type = ProblemDetailsTypes.ForStatusCode(statusCode),
+        Instance = httpContext.Request.Path
+    };
+    problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
+
+    httpContext.Response.ContentType = "application/problem+json";
+    await httpContext.Response.WriteAsJsonAsync(
+        problemDetails,
+        problemDetails.GetType(),
+        options: null,
+        contentType: "application/problem+json",
+        cancellationToken: httpContext.RequestAborted);
+});
 
 var swaggerEnabled = builder.Configuration.GetValue<bool>(
     $"{ApiDocumentationOptions.SectionName}:Enabled");

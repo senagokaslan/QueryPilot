@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using QueryPilot.Api.Common.Pagination;
 
 namespace QueryPilot.Api.Features.Orders.Dtos;
 
@@ -7,7 +8,7 @@ public sealed class OrderListRequest : IValidatableObject
     [Range(1, int.MaxValue)]
     public int Page { get; init; } = 1;
 
-    [Range(1, int.MaxValue)]
+    [PageSize]
     public int? PageSize { get; init; }
 
     public DateTimeOffset? From { get; init; }

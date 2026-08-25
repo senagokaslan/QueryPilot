@@ -105,6 +105,10 @@ Cors__AllowCredentials=true
 
 Listede bulunmayan origin'in preflight isteği başarılı CORS header'ı alamaz. Origin karşılaştırması exact yapılır; `https://app.example.com` izni başka scheme, subdomain veya portu kapsamaz.
 
+## Frontend bağımsız HTTP doğrulaması
+
+`http/QueryPilot.Api.http` dosyası; health, temel kayıtlar, sipariş, iade, beş analytics endpointi, AI sorgusu ve limit hatalarını frontend olmadan çağırmak için hazır istekler içerir. Uygulamayı `http://localhost:5199` adresinde çalıştırdıktan sonra `.http` destekleyen bir IDE veya HTTP client ile istekler tek tek gönderilebilir. Dosyanın başındaki ID değerleri kullanılan demo verisine göre güncellenmelidir.
+
 `QueryPilot.Api.Tests` projesi solution'a dahildir. Order testleri istemcinin finansal toplam gönderemediğini, `OrderItem.UnitPrice`/`LineTotal` snapshotlarını ve `Order.TotalAmount` değerini backend ürün fiyatlarından hesaplandığını doğrular. Return testleri partial/full/over-return kurallarını ve `Return.Amount` değerinin güncel Product fiyatı yerine OrderItem fiyat snapshotından üretildiğini kapsar. Invalid business senaryolarında bir EF `SaveChangesInterceptor` ile `SaveChanges` çağrı sayısının sıfır kaldığı kontrol edilir.
 
 `QueryPilot.Api.IntegrationTests` ayrı bir PostgreSQL integration test projesidir. Testler yalnız loopback PostgreSQL sunucusunu kabul eder, `querypilot_test_<guid>` adında benzersiz bir database oluşturur, migrationları uygular, elle hesaplanabilir fixture'ı yükler ve test sonunda yalnız bu kesin isim kalıbındaki database'i kaldırıp silindiğini doğrular. Development veya production database adı hiçbir zaman test bağlantısı olarak kullanılmaz.

@@ -1,0 +1,123 @@
+@baseUrl = http://localhost:5199
+@from = 2024-12-30T00:00:00Z
+@to = 2025-01-06T00:00:00Z
+@categoryId = 1
+@productId = 1
+@customerId = 1
+@orderId = 1
+@completedOrderItemId = 1
+
+### Health
+GET {{baseUrl}}/api/health
+Accept: application/json
+
+### Categories - list
+GET {{baseUrl}}/api/categories?page=1&pageSize=20
+Accept: application/json
+
+### Categories - create
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "HTTP Client Category"
+}
+
+### Products - list
+GET {{baseUrl}}/api/products?page=1&pageSize=20&categoryId={{categoryId}}
+Accept: application/json
+
+### Products - create
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+
+{
+  "name": "HTTP Client Product",
+  "sku": "HTTP-CLIENT-001",
+  "categoryId": {{categoryId}},
+  "unitPrice": 125.50,
+  "isActive": true
+}
+
+### Customers - list
+GET {{baseUrl}}/api/customers?page=1&pageSize=20
+Accept: application/json
+
+### Customers - create
+POST {{baseUrl}}/api/customers
+Content-Type: application/json
+
+{
+  "name": "HTTP Client Customer",
+  "email": "http.client@example.com",
+  "city": "Antalya",
+  "isActive": true
+}
+
+### Orders - list
+GET {{baseUrl}}/api/orders?page=1&pageSize=20
+Accept: application/json
+
+### Orders - create
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "customerId": {{customerId}},
+  "items": [
+    {
+      "productId": {{productId}},
+      "quantity": 2
+    }
+  ]
+}
+
+### Orders - detail
+GET {{baseUrl}}/api/orders/{{orderId}}
+Accept: application/json
+
+### Returns - create (order item must belong to a completed order)
+POST {{baseUrl}}/api/returns
+Content-Type: application/json
+
+{
+  "orderItemId": {{completedOrderItemId}},
+  "quantity": 1,
+  "reason": "HTTP client verification"
+}
+
+### Analytics - sales summary
+GET {{baseUrl}}/api/analytics/summary?from={{from}}&to={{to}}
+Accept: application/json
+
+### Analytics - sales trend
+GET {{baseUrl}}/api/analytics/sales-trend?from={{from}}&to={{to}}&granularity=Daily
+Accept: application/json
+
+### Analytics - top products
+GET {{baseUrl}}/api/analytics/top-products?from={{from}}&to={{to}}&metric=Quantity&limit=5
+Accept: application/json
+
+### Analytics - categories
+GET {{baseUrl}}/api/analytics/categories?from={{from}}&to={{to}}
+Accept: application/json
+
+### Analytics - returns
+GET {{baseUrl}}/api/analytics/returns?from={{from}}&to={{to}}
+Accept: application/json
+
+### AI - natural-language analytics
+POST {{baseUrl}}/api/ai/query
+Content-Type: application/json
+
+{
+  "question": "2024-12-30 ile 2025-01-06 arasındaki satış özetini göster."
+}
+
+### Contract guard - page size above configured maximum returns ProblemDetails
+GET {{baseUrl}}/api/categories?page=1&pageSize=101
+Accept: application/problem+json
+
+### Contract guard - analytics limit above maximum returns ProblemDetails
+GET {{baseUrl}}/api/analytics/top-products?from={{from}}&to={{to}}&metric=Quantity&limit=51
+Accept: application/problem+json

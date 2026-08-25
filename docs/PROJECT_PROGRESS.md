@@ -1,6 +1,6 @@
 # QueryPilot Proje İlerleme Kaydı
 
-Son güncelleme: 21 Ağustos 2026
+Son güncelleme: 25 Ağustos 2026
 
 Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve doğrulama sonuçlarını kalıcı olarak izlemek için kullanılır. Parola, API anahtarı, gerçek müşteri verisi veya başka hassas bilgiler bu dosyaya yazılmaz.
 
@@ -426,6 +426,20 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Swagger development/configured non-production ortamında açılıyor. Production'da `Swagger:Enabled=true` verilse bile middleware kapalı ve Swagger JSON endpointi 404.
 - Production WebApplicationFactory testi exact HTTPS origin'i kabul edip farklı origin'i reddetti; CORS validator unit testleri wildcard ve HTTP production origin senaryolarını kapsıyor.
 
+### Adım 45 - Frontend bağımsız JSON ve hata sözleşmesi
+
+- MVC JSON seçeneklerinde property ve dictionary key adları açıkça camelCase olarak sabitlendi; enumlar okunabilir string değerler olarak kalıyor.
+- Entity ve analytics tarih alanlarının ISO 8601 UTC çıktısı gerçek HTTP response'ları üzerinden doğrulandı.
+- Ürün fiyatı, sipariş/iade tutarları, analytics para alanları ve chart `value` alanları JSON number olarak dönüyor; formatted string tek veri kaynağı değil.
+- Category, Product, Customer ve Order liste endpointleri ortak `items`, `page`, `pageSize`, `totalCount` ve `totalPages` sözleşmesini kullanıyor.
+- Yapılandırılmış maksimum `pageSize` değeri artık model validation sırasında korunuyor; sınırı aşan istek ortak 400 ValidationProblemDetails cevabı alıyor.
+- Model validation, business exception, bulunamayan route, desteklenmeyen method ve media type dahil hata yolları `application/problem+json` ile status, type, title, instance ve traceId alanlarını taşıyor.
+- Sales trend noktaları ortak `periodStart`, `label` ve numeric `value` sözleşmesiyle doğrulandı.
+- AI completed response içinde backend'in structured `data` alanı ile isteğe bağlı `explanation` alanının ayrı kaldığı HTTP seviyesinde test edildi.
+- Controller action return tiplerini tarayan architecture testi Category, Product, Customer, Order, OrderItem ve Return entitylerinin hiçbir endpointten doğrudan serialize edilmediğini koruyor.
+- Pagination maksimumu, top-products limit 50 sınırı ve analytics maksimum beş yıllık tarih aralığı için aşım testleri eklendi.
+- Frontend olmadan health, CRUD, order, return, beş analytics endpointi, AI query ve limit korumalarını çalıştırmak için `http/QueryPilot.Api.http` istemci koleksiyonu eklendi.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -455,7 +469,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 45 için sıradaki roadmap checklist'i bekleniyor.
+Adım 46 - README, demo verisi ve demo sorularını tamamla.
 
 ## Git geçmişi
 
