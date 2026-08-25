@@ -2,6 +2,101 @@
 
 QueryPilot, PostgreSQL verisini ASP.NET Core üzerinden analiz eden ve AI'ı yalnızca kullanıcı sorusunu anlamak ile backend sonucunu açıklamak için kullanan bir Business Intelligence API projesidir.
 
+## Mimari
+
+```mermaid
+flowchart LR
+    U[Kullanıcı] --> F[React BI Dashboard]
+    F -->|REST / JSON| C[ASP.NET Core Controllers]
+    C --> S[Business ve Analytics Servisleri]
+    S --> E[EF Core]
+    E --> P[(PostgreSQL)]
+    C --> O[AI Analytics Coordinator]
+    O --> S
+    O -->|Intent ve açıklama| A[OpenAI Responses API]
+```
+
+PostgreSQL gerçek business kayıtlarını tutar; backend doğrulama, finansal hesap ve analytics sonuçlarının tek kaynağıdır. AI yalnızca doğal dil sorusunu typed intent'e çevirir ve backend'in verdiği structured sonucu açıklar. AI database'e bağlanmaz, raw SQL çalıştırmaz ve finansal sayı hesaplamaz.
+
+## Gereksinimler
+
+| Araç | Gereksinim |
+|---|---|
+| .NET SDK | `8.0.424` (`global.json` ile sabitlenmiştir) |
+| PostgreSQL | PostgreSQL 18; yerel kurulum bu sürümle doğrulanmıştır |
+| Node.js | `22.13.0` veya üzeri |
+| npm | Node.js ile gelen güncel npm |
+| PowerShell | Migration ve test kurulum komutları için PowerShell 7 önerilir |
+| OpenAI API key | Yalnız doğal dil AI endpointi için isteğe bağlıdır |
+
+## Sıfırdan kurulum ve çalıştırma
+
+Aşağıdaki komutlar repository kökünde ve sırasıyla çalıştırılır.
+
+1. PostgreSQL'de uygulama rolünü ve development database'ini oluşturun:
+
+```sql
+CREATE ROLE querypilot_admin WITH LOGIN CREATEDB CREATEROLE PASSWORD '<local-admin-password>';
+CREATE ROLE querypilot_app WITH LOGIN PASSWORD '<development-password>';
+CREATE DATABASE querypilot_dev OWNER querypilot_app;
+```
+
+`querypilot_admin` yalnız yerel integration-test rolünü hazırlamak için kullanılır; uygulama runtime'da daha düşük yetkili `querypilot_app` rolüyle bağlanır.
+
+2. Connection string ve isteğe bağlı AI ayarlarını source code dışında saklayın:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=127.0.0.1;Port=5432;Database=querypilot_dev;Username=querypilot_app;Password=<development-password>" --project src/QueryPilot.Api
+dotnet user-secrets set "Development:PostgresAdminPassword" "<local-admin-password>" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Provider" "OpenAI" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Model" "<model-id>" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:ApiKey" "<your-api-key>" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:TimeoutSeconds" "30" --project src/QueryPilot.Api
+```
+
+AI kullanılmayacaksa dört `AI:*` komutu atlanabilir. Doğrudan analytics endpointleri API key olmadan çalışır.
+
+3. Araçları yükleyin ve migration'ları uygulayın:
+
+```powershell
+dotnet tool restore
+dotnet restore QueryPilot.sln
+dotnet tool run dotnet-ef database update `
+  --project src/QueryPilot.Api/QueryPilot.Api.csproj `
+  --startup-project src/QueryPilot.Api/QueryPilot.Api.csproj
+```
+
+4. Backend'i Development profilinde başlatın:
+
+```powershell
+dotnet run --project src/QueryPilot.Api --launch-profile http
+```
+
+Backend `http://localhost:5199`, Swagger ise `http://localhost:5199/swagger` adresinde açılır. Boş development database'inde `DemoSeed:Enabled=true` ayarı deterministik demo verisini ilk başlangıçta otomatik ekler.
+
+5. Ayrı bir terminalde frontend'i başlatın:
+
+```powershell
+Set-Location frontend
+Copy-Item .env.example .env.local
+npm ci
+npm run dev
+```
+
+Frontend `http://localhost:5173` adresindedir.
+
+6. Otomatik kontrolleri çalıştırın:
+
+```powershell
+Set-Location ..
+.\scripts\setup-integration-tests.ps1
+dotnet test QueryPilot.sln --configuration Release
+Set-Location frontend
+npm test
+npm run lint
+npm run build
+```
+
 ## Proje yapısı
 
 ```text
@@ -44,8 +139,6 @@ C# namespace'leri proje kökü `QueryPilot.Api` ile başlar ve dosyanın klasör
 - `Common/Exceptions/NotFoundException.cs` -> `QueryPilot.Api.Common.Exceptions`
 - `Configuration/AiOptions.cs` -> `QueryPilot.Api.Configuration`
 
-Bu README geliştirme ilerledikçe kurulum, çalıştırma, migration, test ve API kullanım bilgileriyle genişletilecektir.
-
 ## Yerel secret ayarları
 
 Yerel PostgreSQL connection string'i .NET User Secrets içinde `ConnectionStrings:DefaultConnection` anahtarıyla tutulur. Değer source code veya `appsettings` dosyalarına yazılmaz.
@@ -86,6 +179,29 @@ Doğal dil analytics endpointi `POST /api/ai/query` adresindedir. `question` zor
 Başarılı response `status`, analiz türü ve kullanılan UTC parametreleri taşıyan `intent`, gerçek backend sonucu olan `data`, trend analizlerinde ayrıca `chartData` ve isteğe bağlı `explanation` alanlarını içerir. Clarification ve unsupported sonuçları aynı contract içinde kendi typed alanlarını kullanır. Provider tamamen kullanılamıyorsa endpoint ortak, detay sızdırmayan Problem Details 503 cevabı döndürür. Swagger XML açıklamaları request modeli, endpoint davranışı ve 200/400/503 response tiplerini gösterir.
 
 Intent extraction, validation, analytics routing ve açıklama adımlarının özeti için [AI query akışı](docs/ai-query-flow.md) belgesine bakın.
+
+## Ana endpointler
+
+| Method | Endpoint | Amaç |
+|---|---|---|
+| `GET/POST` | `/api/categories` | Kategori listeleme ve oluşturma |
+| `GET/PUT/DELETE` | `/api/categories/{id}` | Kategori detay, güncelleme ve pasifleştirme |
+| `GET/POST` | `/api/products` | Ürün listeleme ve oluşturma |
+| `GET/PUT/DELETE` | `/api/products/{id}` | Ürün detay, güncelleme ve pasifleştirme |
+| `GET/POST` | `/api/customers` | Müşteri listeleme ve oluşturma |
+| `GET/PUT/DELETE` | `/api/customers/{id}` | Müşteri detay, güncelleme ve pasifleştirme |
+| `GET/POST` | `/api/orders` | Sipariş listeleme ve oluşturma |
+| `GET` | `/api/orders/{id}` | Sipariş ve iade özetli satır detayı |
+| `POST` | `/api/returns` | Tamamlanmış sipariş satırından iade oluşturma |
+| `GET` | `/api/analytics/summary` | Gelir, sipariş, adet ve önceki dönem özeti |
+| `GET` | `/api/analytics/sales-trend` | Günlük, haftalık veya aylık satış trendi |
+| `GET` | `/api/analytics/top-products` | Adet veya gelire göre en iyi ürünler |
+| `GET` | `/api/analytics/categories` | Kategori geliri ve payı |
+| `GET` | `/api/analytics/returns` | İade oranı, nedenleri ve ürünleri |
+| `POST` | `/api/ai/query` | Doğal dil sorusunu doğrulanmış analytics sonucuna çevirme |
+| `GET` | `/api/health` | API ve PostgreSQL sağlık durumu |
+
+Liste endpointleri ortak `items`, `page`, `pageSize`, `totalCount` ve `totalPages` sözleşmesini; hatalar ise `application/problem+json` biçimini kullanır. Tam request/response şemaları Swagger'dadır.
 
 ## Swagger ve CORS politikası
 
@@ -178,3 +294,53 @@ dotnet tool run dotnet-ef database update `
 Development ortamında `DemoSeed:Enabled` açık olduğunda boş veritabanına deterministik demo veri eklenir. Seed yaklaşık bir yıllık döneme yayılan 10 kategori, 100 ürün, 500 müşteri ve bunlardan türetilen sipariş, sipariş satırı ve iade kayıtlarını oluşturur. Herhangi bir business verisi varsa seed atlanır; böylece yeniden çalıştırma duplicate kayıt üretmez.
 
 Temel `appsettings.json` içinde seed kapalıdır ve uygulama ayrıca yalnız `Development` ortamında seed çalıştırır. Bu nedenle production ortamında demo veri oluşturulmaz.
+
+Demo seed kapsamı otomatik testle korunur: 10 kategori, 100 ürün, 500 müşteri ve 1.200 sipariş oluşturulur; completed/pending/cancelled siparişler, dört iade nedeni, aylık trend, önceki dönem karşılaştırması, quantity/revenue top products, bütün kategoriler ve iade analytics'i için pozitif veri bulunduğu doğrulanır. Seeder ikinci kez çalıştığında kayıt sayıları değişmez.
+
+## Demo soruları
+
+`POST /api/ai/query` için önerilen demo sırası:
+
+| Senaryo | Örnek soru | Beklenen durum |
+|---|---|---|
+| Sales summary | `Bu ay satışlarımız nasıl?` | `Completed` ve structured satış özeti |
+| Sales trend | `Son 3 ayın aylık satış trendini göster.` | `Completed` ve chart data |
+| Top products | `Son 3 ayda adet bazında en çok satan 5 ürün ne?` | `Completed`, quantity metriği ve limit 5 |
+| Category performance | `Geçen ay kategori performansını göster.` | `Completed` ve kategori gelir/pay listesi |
+| Return analysis | `Son 30 günün iade analizini göster.` | `Completed` ve iade metrikleri |
+| Clarification | `En iyi ürünler hangileri?` | `NeedsClarification`; tarih ve metric istenir |
+| Unsupported | `Yarın Antalya'da hava nasıl?` | `Unsupported`; analytics çağrılmaz |
+
+AI açıklaması kapalı veya geçici olarak kullanılamaz olsa bile `/api/analytics/*` endpointleri ve completed AI response içindeki backend `data` alanı geçerliliğini korur.
+
+## 5-7 dakikalık dinamik veri demosu
+
+1. **0:00-1:00 - Mimari:** PostgreSQL'in gerçek veri, backend'in hesaplama, AI'ın yalnız intent/açıklama sorumluluğunu gösterin.
+2. **1:00-2:00 - Başlangıç sonucu:** Aynı tarih aralığında Sales Summary, Top Products ve Category Performance sonuçlarını açın; lider ürünü ve toplam geliri kaydedin.
+3. **2:00-3:30 - Database değişikliği:** Aktif bir ürün için completed siparişler ekleyerek adet ve gelirini belirgin biçimde artırın.
+4. **3:30-4:30 - Analytics tekrarı:** Aynı sorguları yeniden çalıştırın; gelir artışının eklenen sipariş toplamına, ürün sıralaması ve kategori payının yeni kayıtlara göre değiştiğine dikkat çekin.
+5. **4:30-5:30 - AI grounding:** Aynı doğal dil sorusunu yeniden gönderin; AI açıklamasının eski değeri değil güncel structured analytics sonucunu kullandığını gösterin.
+6. **5:30-6:30 - Koruma:** Cancelled veya geçersiz siparişin analytics sonucunu değiştirmediğini ve belirsiz sorunun clarification döndürdüğünü gösterin.
+7. **6:30-7:00 - Kapanış:** Otomatik testleri, Swagger contractını ve secretların repository dışında tutulduğunu gösterin.
+
+Tekrar üretilebilir ayrıntılı before/after senaryosu için [dinamik analytics demo belgesine](docs/cv-demo-dynamic-analytics.md) bakın.
+
+## Bilinen sınırlamalar
+
+- Authentication ve authorization henüz yoktur. API doğrudan public internete açılmamalı; production erişimi ağ veya platform seviyesinde sınırlandırılmalıdır.
+- Sipariş durumu değiştiren endpoint yoktur. Yeni siparişler `Pending` oluşur; analytics yalnız `Completed` siparişleri kullanır.
+- İade yalnız completed sipariş satırından oluşturulur; bağımsız iade listeleme endpointi yoktur. İade özeti sipariş detayında görünür.
+- AI endpointi provider/model/API key gerektirir ve demo soruları Türkçe akış için optimize edilmiştir. Doğrudan analytics endpointleri AI'dan bağımsızdır.
+- Demo seed yalnız boş database'de ve `Development` ortamında çalışır; production'da otomatik seed kapalıdır.
+- CSV/Excel export, scheduled reports, gerçek zamanlı güncelleme, cache ve çok kiracılı yapı MVP kapsamında değildir.
+- Frontend ve backend ayrı süreçlerdir; production API adresi ve exact CORS originleri deployment sırasında ayrıca yapılandırılmalıdır.
+
+## Nice to Have backlog
+
+- Authentication, role-based authorization ve audit log
+- Sipariş durum workflow'u ve iade listeleme/yönetim ekranı
+- CSV/Excel export ve scheduled e-posta raporları
+- Gelişmiş tarih/kategori/ürün filtreleri ve kaydedilebilir dashboard görünümleri
+- Cache, background jobs, rate limiting ve daha ayrıntılı observability
+- Docker/CI-CD otomasyonu, cloud secret yönetimi ve otomatik rollback
+- Çoklu dil, erişilebilirlik denetimi ve genişletilmiş browser E2E testleri

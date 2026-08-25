@@ -440,6 +440,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Pagination maksimumu, top-products limit 50 sınırı ve analytics maksimum beş yıllık tarih aralığı için aşım testleri eklendi.
 - Frontend olmadan health, CRUD, order, return, beş analytics endpointi, AI query ve limit korumalarını çalıştırmak için `http/QueryPilot.Api.http` istemci koleksiyonu eklendi.
 
+### Adım 46 - README, demo verisi ve demo akışı
+
+- README'e kısa ürün tanımı, Mermaid mimari diyagramı ve database/backend/AI/frontend sorumluluk ayrımı eklendi.
+- .NET 8.0.424, PostgreSQL 18, Node.js 22.13+, npm, PowerShell ve isteğe bağlı OpenAI API key gereksinimleri tablo halinde belgelendi.
+- PostgreSQL rollerinin hazırlanması; User Secrets connection string, local admin password ve AI ayarları; tool restore, solution restore, migration, seed, backend/frontend run ve test komutları sıralı fresh-clone akışına dönüştürüldü.
+- Category, Product, Customer, Order, Return, beş analytics endpointi, AI query ve health endpointleri kısa tabloda toplandı.
+- AI'ın raw SQL çalıştırmadığı, database'e bağlanmadığı, sayı/finansal metrik üretmediği ve backend structured data'sının tek gerçek kaynak olduğu mimari ve demo bölümlerinde açıklandı.
+- Demo seed için yeni otomatik test; 10 kategori, 100 ürün, 500 müşteri, 1.200 sipariş, bütün sipariş durumları, dört iade nedeni, aylık trend, önceki dönem, top-products quantity/revenue, bütün kategoriler ve iade analytics'i için veri bulunduğunu doğruluyor. İkinci seed çağrısının idempotent olduğu da kontrol ediliyor.
+- Sales summary, trend, top products, category, return, clarification ve unsupported durumları için Türkçe demo soruları ve beklenen status değerleri eklendi.
+- Dinamik database değişikliğini, analytics delta'sını, AI grounding'i ve cancelled/invalid korumasını gösteren zamanlanmış 5-7 dakikalık demo akışı README'e eklendi.
+- Authentication eksikliği, order status ve return list endpointlerinin olmaması, seed/AI/deployment sınırları dürüstçe belgelendi; auth/RBAC, export, scheduled reports, cache, observability, CI/CD ve browser E2E Nice to Have backlog'una eklendi.
+- Ayrı geçici local clone üzerinde SDK/tool restore, solution restore, migration, integration-test rol kurulumu, backend unit/integration testleri, frontend `npm ci`/test/lint/build, backend startup, `/api/health` ve Swagger adımları baştan sona başarıyla çalıştırıldı.
+
 ## Veritabanı ve migration durumu
 
 - Yerel geliştirme veritabanı PostgreSQL 18 üzerinde çalışıyor.
@@ -469,7 +482,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 
 ## Sıradaki adım
 
-Adım 46 - README, demo verisi ve demo sorularını tamamla.
+Adım 47 - Cloud PostgreSQL ve production backend'i yayınla.
 
 ## Git geçmişi
 
