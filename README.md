@@ -18,6 +18,8 @@ flowchart LR
 
 PostgreSQL gerçek business kayıtlarını tutar; backend doğrulama, finansal hesap ve analytics sonuçlarının tek kaynağıdır. AI yalnızca doğal dil sorusunu typed intent'e çevirir ve backend'in verdiği structured sonucu açıklar. AI database'e bağlanmaz, raw SQL çalıştırmaz ve finansal sayı hesaplamaz.
 
+> **Public production güvenlik uyarısı:** Authentication ve authorization henüz uygulanmamıştır. API public internete doğrudan açılmamalıdır. Bir deployment yapılacaksa erişim VPN, private network, IP allowlist veya eşdeğer platform kontrolüyle sınırlandırılmalıdır. Bu koruma ya da uygulama seviyesinde auth tamamlanmadan QueryPilot public-production-ready kabul edilmez.
+
 ## Gereksinimler
 
 | Araç | Gereksinim |
