@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: querypilot-api
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/health
+    preDeployCommand: ConnectionStrings__DefaultConnection="$MIGRATION_CONNECTION_STRING" ./querypilot-migrate
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: MIGRATION_CONNECTION_STRING
+        sync: false
+      - key: Cors__AllowedOrigins__0
+        sync: false
+      - key: Cors__AllowCredentials
+        value: "false"
+      - key: AI__Provider
+        value: Gemini
+      - key: AI__Model
+        value: gemini-3.5-flash-lite
+      - key: AI__TimeoutSeconds
+        value: "30"
+      - key: AI__ApiKey
+        sync: false
+      - key: DemoSeed__Enabled
+        value: "false"
+      - key: Swagger__Enabled
+        value: "false"
+
+databases:
+  - name: querypilot-postgres
+    databaseName: querypilot
+    user: querypilot_migrator
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "18"
+    diskSizeGB: 15
+    storageAutoscalingEnabled: true
+    connectionPool: none
+    ipAllowList: []

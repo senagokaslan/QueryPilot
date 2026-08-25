@@ -249,18 +249,18 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Gerçek seed verisiyle `EXPLAIN (ANALYZE, BUFFERS)` incelemesinde Orders tarih filtresi `IX_Orders_OrderDate` indeksini kullandı. Küçük OrderItems ve Returns tablolarında planner'ın seçtiği sequential scan'ler yaklaşık 0,09–1,03 ms aralığında tamamlandı.
 - `OrderDate`, `ReturnDate`, `OrderItemId`, `OrderId`, `ProductId` ve `CategoryId` foreign-key/tarih indeksleri mevcut. Bu veri ve planlar için yeni indeks eklenmedi; üretim ölçeğinde gerçek sorgu istatistikleriyle yeniden değerlendirme not edildi.
 
-### Adım 31 - AI servis soyutlaması ve OpenAI adapter'ı
+### Adım 31 - AI servis soyutlaması ve Gemini adapter'ı
 
 - `IAiService`, kullanıcı sorusunu anlamak ve backend analytics sonucunu açıklamak için iki ayrı async/cancellable metotla oluşturuldu.
 - Feature'a ait `AiQuestionUnderstanding` ve `AiResultExplanation` modelleri provider response tiplerinin uygulama sözleşmesine sızmasını engelliyor.
-- `OpenAiService`, OpenAI Responses API'ye typed `HttpClient` üzerinden bağlanan adapter olarak Dependency Injection'a kaydedildi.
+- `GeminiService`, Gemini native Interactions API'sine typed `HttpClient` üzerinden bağlanan adapter olarak Dependency Injection'a kaydedildi.
 - Provider, model, API key ve 1-120 saniye aralığındaki timeout `AI` configuration bölümünden okunuyor; key user-secrets veya `AI__ApiKey` environment variable ile sağlanabiliyor.
 - Eksik AI configuration uygulama başlangıcını veya analytics endpointlerini engellemiyor; yalnız AI metodu çağrıldığında kontrollü `AiServiceUnavailableException` üretiyor.
 - Caller cancellation doğrudan korunuyor, provider timeout'u ortak 503 hatasına çevriliyor; 408, 429 ve 5xx geçici durumları en fazla üç denemeyle ele alınıyor.
 - Loglarda provider, model, operasyon, sonuç ve elapsed milliseconds bulunuyor; API key, kullanıcı sorusu, analytics JSON'u ve tam prompt yazılmıyor.
 - `FakeAiService` deterministik sonuç veya test delegate'leriyle gerçek API çağrısı olmadan kullanılabiliyor.
-- Fake contract, OpenAI response mapping, Authorization header, transient retry, caller cancellation, timeout ve hassas log içeriği testleri eklendi.
-- Repository taramasında gerçek veya sabitlenmiş API key bulunmadı; business/analytics servisleri provider adapter ya da OpenAI/Gemini tiplerine doğrudan bağımlı değil.
+- Fake contract, Gemini response mapping, `x-goog-api-key` header'ı, transient retry, caller cancellation, timeout ve hassas log içeriği testleri eklendi.
+- Repository taramasında gerçek veya sabitlenmiş API key bulunmadı; business/analytics servisleri provider adapter ya da Gemini tiplerine doğrudan bağımlı değil.
 
 ### Adım 32 - Yapılandırılmış analytics intent çıkarımı
 
@@ -268,7 +268,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - `AiQuestionUnderstanding`, analysis, period, from, to, productName, categoryName, metric ve limit alanlarını taşıyan provider bağımsız uygulama contractına dönüştürüldü.
 - Relative dönem ifadeleri ayrı `period`, açık tarih sınırları ayrı `from`/`to`, ürün ve kategori adları kendi alanlarında çıkarılıyor; belirtilmeyen alanlar tahmin edilmeden `null` kalıyor.
 - Top-products için adet/satış miktarı `quantity`, gelir/ciro `revenue` metriğine eşleniyor; kullanıcı tarafından verilen limit 1-50 aralığında yapılandırılmış alana alınıyor.
-- OpenAI Responses isteği resmi Structured Outputs biçimindeki `text.format`, `json_schema` ve `strict: true` ayarlarını kullanıyor; bütün alanlar required-nullable ve ek alanlar yasak.
+- Gemini Interactions isteği resmi structured output biçimindeki `responseFormat`, `application/json` ve JSON Schema ayarlarını kullanıyor; bütün alanlar required-nullable ve ek alanlar yasak. İstekler `store=false` ile stateless çalışıyor.
 - Prompt ve adapter AI'dan SQL, metrik hesabı veya serbest business cevabı kabul etmiyor; JSON parse hataları, ek alanlar ve sınır dışı limitler kontrollü AI unavailable hatasına çevriliyor.
 - Soru metni `question.Contains` benzeri hazır kalıplarla yönlendirilmiyor. AI yalnız analiz türü ve parametreleri çıkarıyor; satış rakamlarını hesaplama, ürünleri sıralama ve database sonucunu üretme görevi backend analytics servisinde kalıyor.
 - `Son 3 ayda en çok satan 5 ürün ne?` örneğinde `topProducts`, `son 3 ay`, `quantity` ve `5` çıktıları gerçek HTTP çağrısı olmadan adapter seviyesinde doğrulandı.
@@ -396,7 +396,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Category ve Product create/get, Order create/get, tamamlanmış OrderItem için Return create ve Sales Summary endpointleri gerçek HTTP request/response ile doğrulandı.
 - Model validation 400, bulunamayan kayıt 404, duplicate kayıt 409, beklenmeyen exception 500 ve provider unavailable 503 cevaplarının `application/problem+json`, type, title, status, instance ve traceId alanları kontrol edildi.
 - HTTP fixture testi explicit seed ID'lerinden sonra PostgreSQL identity sequence'lerinin ilerletilmesi gereğini yakaladı; fixture bütün sequence'leri mevcut maksimum ID'ye taşıyor.
-- Canlı OpenAI smoke testi `Category=OpenAiSmoke` olarak ayrıldı. `QUERYPILOT_RUN_OPENAI_SMOKE=true`, `AI__ApiKey` ve `AI__Model` birlikte verilmedikçe skipped kalıyor ve normal unit/integration akışında ücretli çağrı yapılmıyor.
+- Canlı Gemini smoke testi `Category=GeminiSmoke` olarak ayrıldı. `QUERYPILOT_RUN_GEMINI_SMOKE=true`, `AI__ApiKey` ve `AI__Model` birlikte verilmedikçe skipped kalıyor ve normal unit/integration akışında provider çağrısı yapılmıyor.
 - PostgreSQL integration paketi 11/11 geçti; bunun dört testi WebApplicationFactory HTTP contract kapsamıdır.
 
 ### Adım 43 - Dinamik database değişikliği ve CV demo akışı
@@ -443,7 +443,7 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 ### Adım 46 - README, demo verisi ve demo akışı
 
 - README'e kısa ürün tanımı, Mermaid mimari diyagramı ve database/backend/AI/frontend sorumluluk ayrımı eklendi.
-- .NET 8.0.424, PostgreSQL 18, Node.js 22.13+, npm, PowerShell ve isteğe bağlı OpenAI API key gereksinimleri tablo halinde belgelendi.
+- .NET 8.0.424, PostgreSQL 18, Node.js 22.13+, npm, PowerShell ve isteğe bağlı Gemini API key gereksinimleri tablo halinde belgelendi.
 - PostgreSQL rollerinin hazırlanması; User Secrets connection string, local admin password ve AI ayarları; tool restore, solution restore, migration, seed, backend/frontend run ve test komutları sıralı fresh-clone akışına dönüştürüldü.
 - Category, Product, Customer, Order, Return, beş analytics endpointi, AI query ve health endpointleri kısa tabloda toplandı.
 - AI'ın raw SQL çalıştırmadığı, database'e bağlanmadığı, sayı/finansal metrik üretmediği ve backend structured data'sının tek gerçek kaynak olduğu mimari ve demo bölümlerinde açıklandı.
@@ -480,9 +480,19 @@ Bu dosya, tamamlanan geliştirme adımlarını, önemli teknik kararları ve do�
 - Sipariş geçmişi olan müşteri DELETE sonrasında PostgreSQL'de pasif olarak ve siparişleriyle birlikte kaldı.
 - Customer testlerinde uygulama loglarına e-posta, müşteri adı veya request body yazılmadığı doğrulandı.
 
+### Adım 47 - v1.0.0 yerel production release gate'i
+
+- Kullanıcının kararıyla cloud deployment yapılmadı; Render ve Neon kaynakları sürüm kapsamı dışında bırakıldı.
+- API yerel PostgreSQL'e karşı `ASPNETCORE_ENVIRONMENT=Production` ile çalıştırıldı; health, read, beş analytics, AI durumları, CORS ve güvenli hata cevapları doğrulandı.
+- AI provider kapalıyken direct analytics'in çalıştığı, AI endpointinin kontrollü 503 döndürdüğü ve cevapta secret bulunmadığı doğrulandı.
+- Geçici bir database'e gerçek `pg_dump`/`pg_restore` yapıldı; kaynak ve geri yüklenen sipariş sayıları eşleşti, geçici database ve dump temizlendi.
+- Release testlerinde 96 unit ve 19 integration testi geçti; 1 opt-in canlı Gemini smoke testi atlandı. Frontend'de 7 test, lint ve production build geçti.
+- NuGet ve npm vulnerability taramalarında bilinen açık, repository secret taramasında credential ve production hata cevaplarında stack trace/secret bulunmadı.
+- Ayrıntılı sonuçlar `docs/releases/v1.0.0.md` sürüm notunda kaydedildi.
+
 ## Sıradaki adım
 
-Adım 47 - Cloud PostgreSQL ve production backend'i yayınla.
+Cloud deployment ertelendi. Yeniden yayın kararı verilirse `docs/production-deployment.md` runbook'u güncel provider fiyatları ve özellikleri doğrulanarak uygulanacak.
 
 ## Git geçmişi
 

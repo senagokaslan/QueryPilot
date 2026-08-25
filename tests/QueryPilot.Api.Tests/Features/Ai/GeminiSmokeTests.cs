@@ -6,29 +6,29 @@ using Xunit;
 
 namespace QueryPilot.Api.Tests.Features.Ai;
 
-public sealed class OpenAiSmokeTests
+public sealed class GeminiSmokeTests
 {
-    [OpenAiSmokeFact]
-    [Trait("Category", "OpenAiSmoke")]
+    [GeminiSmokeFact]
+    [Trait("Category", "GeminiSmoke")]
     public async Task Live_provider_can_extract_a_supported_intent_when_explicitly_enabled()
     {
         var apiKey = Environment.GetEnvironmentVariable("AI__ApiKey")!;
         var model = Environment.GetEnvironmentVariable("AI__Model")!;
         using var client = new HttpClient
         {
-            BaseAddress = new Uri("https://api.openai.com/v1/"),
+            BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/"),
             Timeout = Timeout.InfiniteTimeSpan
         };
-        var service = new OpenAiService(
+        var service = new GeminiService(
             client,
             Options.Create(new AiOptions
             {
-                Provider = "OpenAI",
+                Provider = "Gemini",
                 Model = model,
                 ApiKey = apiKey,
                 TimeoutSeconds = 30
             }),
-            NullLogger<OpenAiService>.Instance);
+            NullLogger<GeminiService>.Instance);
 
         var result = await service.UnderstandQuestionAsync(
             "Bu ay satışlarımız nasıl?");
@@ -38,12 +38,12 @@ public sealed class OpenAiSmokeTests
     }
 }
 
-public sealed class OpenAiSmokeFactAttribute : FactAttribute
+public sealed class GeminiSmokeFactAttribute : FactAttribute
 {
-    public OpenAiSmokeFactAttribute()
+    public GeminiSmokeFactAttribute()
     {
         var explicitlyEnabled = string.Equals(
-            Environment.GetEnvironmentVariable("QUERYPILOT_RUN_OPENAI_SMOKE"),
+            Environment.GetEnvironmentVariable("QUERYPILOT_RUN_GEMINI_SMOKE"),
             "true",
             StringComparison.OrdinalIgnoreCase);
         var hasCredential = !string.IsNullOrWhiteSpace(
@@ -53,8 +53,8 @@ public sealed class OpenAiSmokeFactAttribute : FactAttribute
 
         if (!explicitlyEnabled || !hasCredential || !hasModel)
         {
-            Skip = "Set QUERYPILOT_RUN_OPENAI_SMOKE=true, AI__ApiKey and AI__Model "
-                + "to run the paid live-provider smoke test.";
+            Skip = "Set QUERYPILOT_RUN_GEMINI_SMOKE=true, AI__ApiKey and AI__Model "
+                + "to run the live Gemini provider smoke test.";
         }
     }
 }

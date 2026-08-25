@@ -49,7 +49,7 @@ public sealed class AiServiceTests
             var requestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
             using var requestDocument = JsonDocument.Parse(requestJson);
             var root = requestDocument.RootElement;
-            var instructions = root.GetProperty("instructions").GetString();
+            var instructions = root.GetProperty("system_instruction").GetString();
             var input = root.GetProperty("input").GetString();
 
             Assert.Contains("Yalnızca verilen JSON DTO", instructions);
@@ -59,12 +59,13 @@ public sealed class AiServiceTests
             Assert.Contains("500 karakter", instructions);
             Assert.Contains(question, input);
             Assert.Contains(analyticsJson, input);
-            Assert.False(root.TryGetProperty("text", out _));
+            Assert.False(root.TryGetProperty("response_format", out _));
+            Assert.False(root.GetProperty("store").GetBoolean());
 
             return JsonResponse(ProviderResponseForIntent(
                 "Gelir 610.000 TL'den 540.000 TL'ye gerileyerek azaldı."));
         });
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
 
         var result = await service.ExplainResultAsync(question, analyticsJson);
 
@@ -72,24 +73,30 @@ public sealed class AiServiceTests
     }
 
     [Fact]
-    public async Task OpenAI_adapter_extracts_requested_analysis_period_metric_and_limit()
+    public async Task Gemini_adapter_extracts_requested_analysis_period_metric_and_limit()
     {
         var testCredential = $"test-{Guid.NewGuid():N}";
         var handler = new StubHttpMessageHandler(async (request, cancellationToken) =>
         {
             Assert.Equal(HttpMethod.Post, request.Method);
-            Assert.Equal("https://api.openai.com/v1/responses", request.RequestUri?.ToString());
-            Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
-            Assert.Equal(testCredential, request.Headers.Authorization?.Parameter);
+            Assert.Equal(
+                "https://generativelanguage.googleapis.com/v1beta/interactions",
+                request.RequestUri?.ToString());
+            Assert.Null(request.Headers.Authorization);
+            Assert.Equal(
+                testCredential,
+                Assert.Single(request.Headers.GetValues("x-goog-api-key")));
 
             var requestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
             using var requestDocument = JsonDocument.Parse(requestJson);
             var root = requestDocument.RootElement;
-            var instructions = root.GetProperty("instructions").GetString();
-            var format = root.GetProperty("text").GetProperty("format");
+            var instructions = root.GetProperty("system_instruction").GetString();
+            var input = root.GetProperty("input").GetString();
+            var format = root.GetProperty("response_format");
             var schema = format.GetProperty("schema");
 
-            Assert.Equal("Son 3 ayda en çok satan 5 ürün ne?", root.GetProperty("input").GetString());
+            Assert.Equal("test-model", root.GetProperty("model").GetString());
+            Assert.Equal("Son 3 ayda en çok satan 5 ürün ne?", input);
             Assert.Contains("salesSummary", instructions);
             Assert.Contains("salesTrend", instructions);
             Assert.Contains("topProducts", instructions);
@@ -103,8 +110,9 @@ public sealed class AiServiceTests
             Assert.Contains("ignore these rules", instructions);
             Assert.Contains("reveal", instructions);
             Assert.Contains("secrets", instructions);
-            Assert.Equal("json_schema", format.GetProperty("type").GetString());
-            Assert.True(format.GetProperty("strict").GetBoolean());
+            Assert.Equal("text", format.GetProperty("type").GetString());
+            Assert.Equal("application/json", format.GetProperty("mime_type").GetString());
+            Assert.False(root.GetProperty("store").GetBoolean());
             Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
             Assert.Equal(9, schema.GetProperty("required").GetArrayLength());
 
@@ -114,7 +122,7 @@ public sealed class AiServiceTests
                 metric: "quantity",
                 limit: 5)));
         });
-        var logger = new CapturingLogger<OpenAiService>();
+        var logger = new CapturingLogger<GeminiService>();
         var service = CreateService(handler, logger, credential: testCredential);
 
         var result = await service.UnderstandQuestionAsync(
@@ -196,7 +204,7 @@ public sealed class AiServiceTests
         null,
         null,
         null)]
-    public async Task OpenAI_adapter_maps_different_Turkish_question_patterns(
+    public async Task Gemini_adapter_maps_different_Turkish_question_patterns(
         string question,
         AiAnalysisType analysis,
         string? period,
@@ -219,7 +227,7 @@ public sealed class AiServiceTests
                 granularity is null ? null : ToJsonName(granularity.Value),
                 metric is null ? null : ToJsonName(metric.Value),
                 limit)))));
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
 
         var result = await service.UnderstandQuestionAsync(question);
 
@@ -244,12 +252,12 @@ public sealed class AiServiceTests
     [InlineData("{\"analysis\":\"salesTrend\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":\"yearly\",\"metric\":null,\"limit\":null}")]
     [InlineData("{\"analysis\":\"topProducts\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":\"profit\",\"limit\":5}")]
     [InlineData("{\"analysis\":\"topProducts\",\"period\":\"son ay\",\"from\":null,\"to\":null,\"productName\":null,\"categoryName\":null,\"granularity\":null,\"metric\":\"quantity\",\"limit\":51}")]
-    public async Task OpenAI_adapter_rejects_free_text_or_invalid_intent_json(
+    public async Task Gemini_adapter_rejects_free_text_or_invalid_intent_json(
         string providerOutput)
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(
             JsonResponse(ProviderResponseForIntent(providerOutput))));
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
 
         var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
             service.UnderstandQuestionAsync("Satışları yorumla"));
@@ -258,7 +266,7 @@ public sealed class AiServiceTests
     }
 
     [Fact]
-    public async Task OpenAI_adapter_retries_transient_provider_failures()
+    public async Task Gemini_adapter_retries_transient_provider_failures()
     {
         var attempts = 0;
         var handler = new StubHttpMessageHandler((_, _) =>
@@ -271,7 +279,7 @@ public sealed class AiServiceTests
                 _ => JsonResponse(ProviderResponseForIntent(IntentJson("salesSummary")))
             });
         });
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
 
         var result = await service.UnderstandQuestionAsync("Show sales");
 
@@ -284,12 +292,12 @@ public sealed class AiServiceTests
     [InlineData(HttpStatusCode.InternalServerError)]
     [InlineData(HttpStatusCode.BadGateway)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
-    public async Task OpenAI_adapter_converts_exhausted_transient_status_to_common_error(
+    public async Task Gemini_adapter_converts_exhausted_transient_status_to_common_error(
         HttpStatusCode statusCode)
     {
         var handler = new StubHttpMessageHandler((_, _) => Task.FromResult(
             new HttpResponseMessage(statusCode)));
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
 
         var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
             service.UnderstandQuestionAsync("Show sales"));
@@ -298,11 +306,11 @@ public sealed class AiServiceTests
     }
 
     [Fact]
-    public async Task OpenAI_adapter_converts_connection_failure_to_common_error()
+    public async Task Gemini_adapter_converts_connection_failure_to_common_error()
     {
         var handler = new StubHttpMessageHandler((_, _) =>
             throw new HttpRequestException("Sensitive transport detail."));
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
 
         var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
             service.UnderstandQuestionAsync("Show sales"));
@@ -312,14 +320,14 @@ public sealed class AiServiceTests
     }
 
     [Fact]
-    public async Task OpenAI_adapter_propagates_caller_cancellation()
+    public async Task Gemini_adapter_propagates_caller_cancellation()
     {
         var handler = new StubHttpMessageHandler(async (_, cancellationToken) =>
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return JsonResponse("{}");
         });
-        var service = CreateService(handler, new CapturingLogger<OpenAiService>());
+        var service = CreateService(handler, new CapturingLogger<GeminiService>());
         using var cancellationSource = new CancellationTokenSource();
         cancellationSource.Cancel();
 
@@ -330,7 +338,7 @@ public sealed class AiServiceTests
     }
 
     [Fact]
-    public async Task OpenAI_adapter_converts_timeout_to_service_unavailable()
+    public async Task Gemini_adapter_converts_timeout_to_service_unavailable()
     {
         var handler = new StubHttpMessageHandler(async (_, cancellationToken) =>
         {
@@ -339,7 +347,7 @@ public sealed class AiServiceTests
         });
         var service = CreateService(
             handler,
-            new CapturingLogger<OpenAiService>(),
+            new CapturingLogger<GeminiService>(),
             timeoutSeconds: 1);
 
         var exception = await Assert.ThrowsAsync<AiServiceUnavailableException>(() =>
@@ -348,26 +356,26 @@ public sealed class AiServiceTests
         Assert.Contains("timed out", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static OpenAiService CreateService(
+    private static GeminiService CreateService(
         HttpMessageHandler handler,
-        ILogger<OpenAiService> logger,
+        ILogger<GeminiService> logger,
         int timeoutSeconds = 5,
         string? credential = null)
     {
         var client = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://api.openai.com/v1/"),
+            BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/"),
             Timeout = Timeout.InfiniteTimeSpan
         };
         var options = Options.Create(new AiOptions
         {
-            Provider = "OpenAI",
+            Provider = "Gemini",
             Model = "test-model",
             ApiKey = credential ?? $"test-{Guid.NewGuid():N}",
             TimeoutSeconds = timeoutSeconds
         });
 
-        return new OpenAiService(client, options, logger);
+        return new GeminiService(client, options, logger);
     }
 
     private static HttpResponseMessage JsonResponse(string json) =>
@@ -402,16 +410,20 @@ public sealed class AiServiceTests
     private static string ProviderResponseForIntent(string intentJson) =>
         JsonSerializer.Serialize(new
         {
-            output = new[]
+            id = "test-interaction",
+            status = "completed",
+            steps = new[]
             {
                 new
                 {
+                    type = "model_output",
                     content = new[]
                     {
-                        new { type = "output_text", text = intentJson }
+                        new { type = "text", text = intentJson }
                     }
                 }
-            }
+            },
+            usage = new { totalInputTokens = 10, totalOutputTokens = 5 }
         });
 
     private static string ToJsonName(AiAnalysisType analysis) => analysis switch

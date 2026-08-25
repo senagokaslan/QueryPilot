@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -10,12 +9,12 @@ using QueryPilot.Api.Configuration;
 
 namespace QueryPilot.Api.Features.Ai;
 
-public sealed class OpenAiService(
+public sealed class GeminiService(
     HttpClient httpClient,
     IOptions<AiOptions> options,
-    ILogger<OpenAiService> logger) : IAiService
+    ILogger<GeminiService> logger) : IAiService
 {
-    private const string ProviderName = "OpenAI";
+    private const string ProviderName = "Gemini";
     private const string ProviderUnavailableMessage =
         "The AI provider is temporarily unavailable.";
     private const int MaximumAttempts = 3;
@@ -55,14 +54,15 @@ public sealed class OpenAiService(
         döndür; JSON, Markdown veya ek başlık döndürme.
         """;
 
-    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
+    private static readonly JsonSerializerOptions ProviderJsonOptions =
+        CreateProviderJsonOptions();
+    private static readonly JsonSerializerOptions IntentJsonOptions =
+        CreateIntentJsonOptions();
 
-    private static readonly OpenAiTextConfiguration IntentTextConfiguration = new(
-        new OpenAiTextFormat(
-            Type: "json_schema",
-            Name: "querypilot_analytics_intent",
-            Strict: true,
-            Schema: CreateIntentSchema()));
+    private static readonly GeminiResponseFormat IntentResponseFormat = new(
+        Type: "text",
+        MimeType: "application/json",
+        Schema: CreateIntentSchema());
 
     public async Task<AiQuestionUnderstanding> UnderstandQuestionAsync(
         string question,
@@ -74,14 +74,14 @@ public sealed class OpenAiService(
             "understand-question",
             UnderstandInstructions,
             question,
-            IntentTextConfiguration,
+            IntentResponseFormat,
             cancellationToken);
 
         try
         {
             var intent = JsonSerializer.Deserialize<AiQuestionUnderstanding>(
                 text,
-                JsonOptions)
+                IntentJsonOptions)
                 ?? throw new JsonException("AI intent response was null.");
 
             if (intent.Limit is <= 0 or > 50)
@@ -119,7 +119,7 @@ public sealed class OpenAiService(
             "explain-result",
             ExplainInstructions,
             input,
-            textConfiguration: null,
+            responseFormat: null,
             cancellationToken);
 
         return new AiResultExplanation(text);
@@ -129,7 +129,7 @@ public sealed class OpenAiService(
         string operation,
         string instructions,
         string input,
-        OpenAiTextConfiguration? textConfiguration,
+        GeminiResponseFormat? responseFormat,
         CancellationToken cancellationToken)
     {
         var settings = ValidateOptions(options.Value);
@@ -150,7 +150,7 @@ public sealed class OpenAiService(
                         settings,
                         instructions,
                         input,
-                        textConfiguration);
+                        responseFormat);
                     using var response = await httpClient.SendAsync(
                         request,
                         HttpCompletionOption.ResponseHeadersRead,
@@ -223,22 +223,22 @@ public sealed class OpenAiService(
         ValidatedAiOptions settings,
         string instructions,
         string input,
-        OpenAiTextConfiguration? textConfiguration)
+        GeminiResponseFormat? responseFormat)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "responses")
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "interactions")
         {
             Content = JsonContent.Create(
-                new OpenAiResponseRequest(
-                    settings.Model,
-                    instructions,
-                    input,
-                    Store: false,
-                    Text: textConfiguration),
-                options: JsonOptions)
+                new GeminiInteractionRequest(
+                    Model: settings.Model,
+                    Input: input,
+                    SystemInstruction: instructions,
+                    ResponseFormat: responseFormat,
+                    Store: false),
+                options: ProviderJsonOptions)
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            settings.ApiKey);
+        request.Headers.Add("x-goog-api-key", settings.ApiKey);
 
         return request;
     }
@@ -247,12 +247,14 @@ public sealed class OpenAiService(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        var providerResponse = await response.Content.ReadFromJsonAsync<OpenAiResponse>(
-            JsonOptions,
+        var providerResponse = await response.Content.ReadFromJsonAsync<GeminiResponse>(
+            ProviderJsonOptions,
             cancellationToken);
-        var text = providerResponse?.Output
-            .SelectMany(item => item.Content ?? [])
-            .FirstOrDefault(content => content.Type == "output_text")
+        var text = providerResponse?.Steps
+            ?.Where(step => step.Type == "model_output")
+            .SelectMany(step => step.Content ?? [])
+            .FirstOrDefault(content =>
+                content.Type == "text" && !string.IsNullOrWhiteSpace(content.Text))
             ?.Text
             ?.Trim();
 
@@ -305,11 +307,23 @@ public sealed class OpenAiService(
         CancellationToken cancellationToken) =>
         Task.Delay(TimeSpan.FromMilliseconds(200 * attempt), cancellationToken);
 
-    private static JsonSerializerOptions CreateJsonOptions()
+    private static JsonSerializerOptions CreateProviderJsonOptions()
     {
         var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        };
+        serializerOptions.Converters.Add(
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+
+        return serializerOptions;
+    }
+
+    private static JsonSerializerOptions CreateIntentJsonOptions()
+    {
+        var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         };
         serializerOptions.Converters.Add(
@@ -378,28 +392,26 @@ public sealed class OpenAiService(
         string ApiKey,
         int TimeoutSeconds);
 
-    private sealed record OpenAiResponseRequest(
+    private sealed record GeminiInteractionRequest(
         string Model,
-        string Instructions,
         string Input,
-        bool Store,
-        OpenAiTextConfiguration? Text);
+        string SystemInstruction,
+        GeminiResponseFormat? ResponseFormat,
+        bool Store);
 
-    private sealed record OpenAiTextConfiguration(OpenAiTextFormat Format);
-
-    private sealed record OpenAiTextFormat(
+    private sealed record GeminiResponseFormat(
         string Type,
-        string Name,
-        bool Strict,
+        string MimeType,
         JsonElement Schema);
 
-    private sealed record OpenAiResponse(
-        IReadOnlyList<OpenAiOutputItem> Output);
+    private sealed record GeminiResponse(
+        IReadOnlyList<GeminiStep>? Steps);
 
-    private sealed record OpenAiOutputItem(
-        IReadOnlyList<OpenAiOutputContent>? Content);
+    private sealed record GeminiStep(
+        string? Type,
+        IReadOnlyList<GeminiOutputContent>? Content);
 
-    private sealed record OpenAiOutputContent(
-        string Type,
+    private sealed record GeminiOutputContent(
+        string? Type,
         string? Text);
 }

@@ -74,6 +74,11 @@ builder.Services.AddCors(options =>
         }
     });
 });
+var demoSeedOptions = builder.Configuration
+    .GetSection(DemoSeedOptions.SectionName)
+    .Get<DemoSeedOptions>()
+    ?? new DemoSeedOptions();
+DemoSeedOptionsValidator.Validate(demoSeedOptions, builder.Environment);
 builder.Services.Configure<DemoSeedOptions>(
     builder.Configuration.GetSection(DemoSeedOptions.SectionName));
 builder.Services
@@ -85,13 +90,13 @@ builder.Services
         "Pagination:DefaultPageSize cannot be greater than Pagination:MaxPageSize.")
     .ValidateOnStart();
 builder.Services.AddScoped<DemoDataSeeder>();
-builder.Services.AddHttpClient<OpenAiService>(client =>
+builder.Services.AddHttpClient<GeminiService>(client =>
 {
-    client.BaseAddress = new Uri("https://api.openai.com/v1/");
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/");
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
 builder.Services.AddScoped<IAiService>(serviceProvider =>
-    serviceProvider.GetRequiredService<OpenAiService>());
+    serviceProvider.GetRequiredService<GeminiService>());
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAiIntentValidator, AiIntentValidator>();
 builder.Services.AddScoped<IAiAnalyticsCoordinator, AiAnalyticsCoordinator>();

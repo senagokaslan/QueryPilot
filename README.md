@@ -13,7 +13,7 @@ flowchart LR
     E --> P[(PostgreSQL)]
     C --> O[AI Analytics Coordinator]
     O --> S
-    O -->|Intent ve açıklama| A[OpenAI Responses API]
+    O -->|Intent ve açıklama| A[Gemini Interactions API]
 ```
 
 PostgreSQL gerçek business kayıtlarını tutar; backend doğrulama, finansal hesap ve analytics sonuçlarının tek kaynağıdır. AI yalnızca doğal dil sorusunu typed intent'e çevirir ve backend'in verdiği structured sonucu açıklar. AI database'e bağlanmaz, raw SQL çalıştırmaz ve finansal sayı hesaplamaz.
@@ -27,7 +27,7 @@ PostgreSQL gerçek business kayıtlarını tutar; backend doğrulama, finansal h
 | Node.js | `22.13.0` veya üzeri |
 | npm | Node.js ile gelen güncel npm |
 | PowerShell | Migration ve test kurulum komutları için PowerShell 7 önerilir |
-| OpenAI API key | Yalnız doğal dil AI endpointi için isteğe bağlıdır |
+| Gemini API key | Yalnız doğal dil AI endpointi için isteğe bağlıdır |
 
 ## Sıfırdan kurulum ve çalıştırma
 
@@ -48,8 +48,8 @@ CREATE DATABASE querypilot_dev OWNER querypilot_app;
 ```powershell
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=127.0.0.1;Port=5432;Database=querypilot_dev;Username=querypilot_app;Password=<development-password>" --project src/QueryPilot.Api
 dotnet user-secrets set "Development:PostgresAdminPassword" "<local-admin-password>" --project src/QueryPilot.Api
-dotnet user-secrets set "AI:Provider" "OpenAI" --project src/QueryPilot.Api
-dotnet user-secrets set "AI:Model" "<model-id>" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Provider" "Gemini" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Model" "gemini-3.5-flash-lite" --project src/QueryPilot.Api
 dotnet user-secrets set "AI:ApiKey" "<your-api-key>" --project src/QueryPilot.Api
 dotnet user-secrets set "AI:TimeoutSeconds" "30" --project src/QueryPilot.Api
 ```
@@ -130,6 +130,8 @@ Tek deploy birimi `QueryPilot.Api` projesidir. Microservice, CQRS, MediatR veya 
 
 Veri modeli ve ilişki kararları için [Database Modeli](docs/database-model.md) belgesine bakın.
 
+Production Docker image'i, managed PostgreSQL yetkileri, secret/environment contract'ı ve kontrollü migration sırası için [Production deployment](docs/production-deployment.md) runbook'una bakın.
+
 ## Namespace kuralı
 
 C# namespace'leri proje kökü `QueryPilot.Api` ile başlar ve dosyanın klasör yolunu izler. Örneğin:
@@ -143,11 +145,11 @@ C# namespace'leri proje kökü `QueryPilot.Api` ile başlar ve dosyanın klasör
 
 Yerel PostgreSQL connection string'i .NET User Secrets içinde `ConnectionStrings:DefaultConnection` anahtarıyla tutulur. Değer source code veya `appsettings` dosyalarına yazılmaz.
 
-OpenAI adapter'ı Responses API kullanır. Provider, model, API key ve timeout değerleri `AI` configuration bölümünden okunur. API anahtarını source code veya `appsettings.json` içine yazmayın; yerel geliştirmede user-secrets kullanın.
+Gemini adapter'ı native, stateless `Interactions API` çağrılarını kullanır. Provider, model, API key ve timeout değerleri `AI` configuration bölümünden okunur. API anahtarını source code veya `appsettings.json` içine yazmayın; yerel geliştirmede user-secrets kullanın. API key Google AI Studio üzerinden oluşturulur.
 
 ```powershell
-dotnet user-secrets set "AI:Provider" "OpenAI" --project src/QueryPilot.Api
-dotnet user-secrets set "AI:Model" "<model-id>" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Provider" "Gemini" --project src/QueryPilot.Api
+dotnet user-secrets set "AI:Model" "gemini-3.5-flash-lite" --project src/QueryPilot.Api
 dotnet user-secrets set "AI:ApiKey" "<your-api-key>" --project src/QueryPilot.Api
 dotnet user-secrets set "AI:TimeoutSeconds" "30" --project src/QueryPilot.Api
 ```
@@ -244,13 +246,13 @@ Fixture; summary, günlük/haftalık/aylık trend, top-products quantity/revenue
 
 PostgreSQL kayıtları değiştiğinde Top Products, Sales Summary, Category Performance ve aynı doğal dil AI sorusunun nasıl güncellendiğini gösteren kısa before/after sunumu için [CV dynamic analytics demo senaryosuna](docs/cv-demo-dynamic-analytics.md) bakın.
 
-Gerçek OpenAI testi normal test paketinden ayrı ve varsayılan olarak skipped bir smoke testtir. Yalnız bilinçli olarak aşağıdaki üç environment variable sağlandığında ücretli provider çağrısı yapar:
+Gerçek Gemini testi normal test paketinden ayrı ve varsayılan olarak skipped bir smoke testtir. Yalnız bilinçli olarak aşağıdaki üç environment variable sağlandığında canlı provider çağrısı yapar:
 
 ```powershell
-$env:QUERYPILOT_RUN_OPENAI_SMOKE = "true"
+$env:QUERYPILOT_RUN_GEMINI_SMOKE = "true"
 $env:AI__ApiKey = "<your-api-key>"
-$env:AI__Model = "<model-id>"
-dotnet test tests/QueryPilot.Api.Tests/QueryPilot.Api.Tests.csproj --filter "Category=OpenAiSmoke"
+$env:AI__Model = "gemini-3.5-flash-lite"
+dotnet test tests/QueryPilot.Api.Tests/QueryPilot.Api.Tests.csproj --filter "Category=GeminiSmoke"
 ```
 
 ## Yerel PostgreSQL
